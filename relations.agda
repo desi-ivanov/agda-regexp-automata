@@ -1,9 +1,10 @@
 module relations where
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; cong; sym)
+open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; _≡⟨_⟩_; _∎)
 open import Data.Nat using (ℕ; zero; suc; pred; _+_; _*_)
 open import Data.Nat.Properties using (+-comm; *-comm)
-open import introduction using (*-uno)
+open import introduction using (*-uno; *-distrib-+; +-identity)
 
 data _≤_ : ℕ → ℕ → Set where
 
@@ -43,6 +44,14 @@ inv-z≤n z≤n = refl
   → m ≤ p
 ≤-trans z≤n _ = z≤n
 ≤-trans (s≤s m≤n) (s≤s n≤p) = s≤s (≤-trans m≤n n≤p)
+
+≤-trans' : ∀ (m n p : ℕ)
+  → m ≤ n
+  → n ≤ p
+    -----
+  → m ≤ p
+≤-trans' zero n p m≤n n≤p = z≤n
+≤-trans' (suc m) (suc n) (suc p) (s≤s m≤n) (s≤s n≤p) = s≤s (≤-trans' m n p m≤n n≤p)
 
 
 ≤-antisym : ∀ {m n : ℕ}
@@ -181,6 +190,189 @@ data Trichotomy (n m : ℕ ) : Set  where
     helper (tlt m<n) = tlt (s<s m<n)
     helper (teq m≡n) = teq (cong suc m≡n)
     helper (tgt n<m) = tgt (s<s n<m)
+
++-monor-< : ∀ (m n p : ℕ)
+  → n < p
+  -------
+  → m + n < m + p
++-monor-< zero n p n<p = n<p
++-monor-< (suc m) n p n<p = s<s (+-monor-< m n p n<p)
+
++-monol-< : ∀ (m n p : ℕ)
+  → n < p
+  -------
+  → n + m < p + m
++-monol-< m n p n<p rewrite +-comm n m | +-comm p m = +-monor-< m n p n<p
+
++-mono-< : ∀ (m n p q : ℕ)
+  → m < n
+  → p < q
+    -------------
+  → m + p < n + q
++-mono-< m n p q m<n p<q = <-trans (+-monol-< p m n m<n) (+-monor-< n p q p<q)
+
+-- ≤-iff-<
+≤→< : ∀ (m n : ℕ)
+  → suc m ≤ n
+  -----------
+  → m < n
+≤→< zero (suc n) _ = z<s
+≤→< (suc m) (suc n) (s≤s m≤n) = s<s (≤→< m n m≤n)
+
+-- ≤-iff-<
+≤←< : ∀ (m n : ℕ)
+  → m < n
+  -----------
+  → suc m ≤ n
+≤←< zero (suc n) z<s = s≤s z≤n
+≤←< (suc m) (suc n) (s<s m<n) = s≤s (≤←< m n m<n)
+
+<subset≤ : ∀ (m n : ℕ)
+  → m < n
+  --------
+  → m ≤ n
+<subset≤ zero n m<n = z≤n
+<subset≤ (suc m) (suc n) (s<s m<n) = s≤s (<subset≤ m n m<n)
+
+<-trans-revisited : ∀ (m n p : ℕ)
+  → m < n
+  → n < p
+  --------
+  → m < p
+<-trans-revisited m (suc n) p m<n n<p = ≤→< m p (≤-trans' (suc m) (suc n) p (≤←< m (suc n) m<n) (<subset≤ (suc n) p n<p))
+
+data even : ℕ → Set
+data odd  : ℕ → Set
+
+data even where
+
+  zero :
+      ---------
+      even zero
+
+  suc  : ∀ {n : ℕ}
+    → odd n
+      ------------
+    → even (suc n)
+
+data odd where
+
+  suc   : ∀ {n : ℕ}
+    → even n
+      -----------
+    → odd (suc n)
+
+
+o+e≡o : ∀ {m n : ℕ}
+  → odd m
+  → even n
+    -----------
+  → odd (m + n)
+
+e+e≡e : ∀ {m n : ℕ}
+  → even m
+  → even n
+    ------------
+  → even (m + n)
+e+e≡e zero     en  =  en
+e+e≡e (suc om) en  =  suc (o+e≡o om en)
+
+
+o+e≡o (suc em) en  =  suc (e+e≡e em en)
+
+o+o≡e : ∀ {m n : ℕ}
+  → odd m
+  → odd n
+  -------
+  → even (m + n)
+o+o≡e (suc zero) (suc x) = suc (suc x)
+o+o≡e (suc (suc x)) on = suc (suc (o+o≡e x on))
+
+
+data Bin : Set where
+  ⟨⟩ : Bin
+  _O : Bin → Bin
+  _I : Bin → Bin
+
+data BinStartsOne : Bin → Set where
+  isOne : BinStartsOne (⟨⟩ I)
+  flwByOne : ∀ (b : Bin)
+    → BinStartsOne b
+      ---------------
+    → BinStartsOne (b I)
+  flwByZero : ∀ (b : Bin)
+    → BinStartsOne b
+      ---------------
+    → BinStartsOne (b O)
+
+data Can : Bin → Set where
+  zeroIsCan : Can (⟨⟩ O)
+  startsWithOne : ∀ (b : Bin)
+    → BinStartsOne b
+    -----------------
+    → Can b
+
+inc : Bin → Bin
+inc ⟨⟩ = ⟨⟩ I
+inc (prec O) = prec I
+inc (prec I) = (inc prec) O
+
+natToBin : ℕ → Bin
+natToBin zero = ⟨⟩ O
+natToBin (suc n) = inc (natToBin n)
+
+binToNat : Bin → ℕ
+binToNat ⟨⟩ = 0
+binToNat (b O) = 2 * binToNat b
+binToNat (b I) = suc (2 * binToNat b)
+
+oneway : ∀ (b : Bin)
+  → BinStartsOne (b O)
+  --------------------
+  → BinStartsOne (b I)
+oneway ⟨⟩ bb = isOne
+oneway (b O) (flwByZero .(b O) bb) = flwByOne (b O) bb
+oneway (b I) (flwByZero .(b I) bb) = flwByOne (b I) bb
+
+incPreservesOne : ∀ (b : Bin)
+  → BinStartsOne b
+  ----------------
+  → BinStartsOne (inc b)
+incPreservesOne (b O) bo = oneway b bo
+incPreservesOne (.⟨⟩ I) isOne = flwByZero (⟨⟩ I) isOne
+incPreservesOne (b I) (flwByOne .b bo) = flwByZero (inc b) (incPreservesOne b bo)
+
+incPreservesCan : ∀ (b : Bin)
+  → Can b
+  --------
+  → Can (inc b)
+incPreservesCan ⟨⟩ _ = startsWithOne (⟨⟩ I) isOne
+incPreservesCan (⟨⟩ O) zeroIsCan = startsWithOne (⟨⟩ I) isOne
+incPreservesCan (b O) (startsWithOne (b O) x) = startsWithOne (b I) (oneway b x)
+incPreservesCan (b I) (startsWithOne (b I) x) = startsWithOne (inc (b I)) (incPreservesOne (b I) x)
+
+natToBinYieldsCan : ∀ (n : ℕ) → Can (natToBin n)
+natToBinYieldsCan zero = zeroIsCan
+natToBinYieldsCan (suc n) = incPreservesCan (natToBin n) (natToBinYieldsCan n)
+
+
+cantofromb : ∀ (b : Bin)
+  → Can b
+  -------
+  → natToBin (binToNat b) ≡ b
+cantofromb (⟨⟩ O) zeroIsCan = refl
+cantofromb (b O) (startsWithOne .(b O) x) =
+  begin
+    natToBin (binToNat (b O))
+  ≡⟨⟩
+    natToBin (2 * binToNat b)
+  ≡⟨⟩
+    {!   !}
+cantofromb (b I) (startsWithOne .(b I) x) =
+  begin
+    natToBin (suc (2 * binToNat b))
+  ≡⟨⟩
+    {!   !}
 
 
 
