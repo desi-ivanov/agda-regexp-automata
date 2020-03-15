@@ -4,7 +4,7 @@ open Eq using (_≡_; refl; cong; sym)
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; _≡⟨_⟩_; _∎)
 open import Data.Nat using (ℕ; zero; suc; pred; _+_; _*_)
 open import Data.Nat.Properties using (+-comm; *-comm)
-open import introduction using (*-uno; *-distrib-+; +-identity)
+open import introduction using (*-uno; *-nullo; *-distrib-+; +-identity; Bin; ⟨⟩; _O; _I; inc; natToBin; binToNat)
 
 data _≤_ : ℕ → ℕ → Set where
 
@@ -289,11 +289,6 @@ o+o≡e (suc zero) (suc x) = suc (suc x)
 o+o≡e (suc (suc x)) on = suc (suc (o+o≡e x on))
 
 
-data Bin : Set where
-  ⟨⟩ : Bin
-  _O : Bin → Bin
-  _I : Bin → Bin
-
 data BinStartsOne : Bin → Set where
   isOne : BinStartsOne (⟨⟩ I)
   flwByOne : ∀ (b : Bin)
@@ -312,20 +307,6 @@ data Can : Bin → Set where
     -----------------
     → Can b
 
-inc : Bin → Bin
-inc ⟨⟩ = ⟨⟩ I
-inc (prec O) = prec I
-inc (prec I) = (inc prec) O
-
-natToBin : ℕ → Bin
-natToBin zero = ⟨⟩ O
-natToBin (suc n) = inc (natToBin n)
-
-binToNat : Bin → ℕ
-binToNat ⟨⟩ = 0
-binToNat (b O) = 2 * binToNat b
-binToNat (b I) = suc (2 * binToNat b)
-
 oneway : ∀ (b : Bin)
   → BinStartsOne (b O)
   --------------------
@@ -333,6 +314,25 @@ oneway : ∀ (b : Bin)
 oneway ⟨⟩ bb = isOne
 oneway (b O) (flwByZero .(b O) bb) = flwByOne (b O) bb
 oneway (b I) (flwByZero .(b I) bb) = flwByOne (b I) bb
+
+flwByZeroFlip : ∀ (b : Bin)
+  → BinStartsOne (b O)
+  ----
+  → BinStartsOne b
+flwByZeroFlip b (flwByZero .b bb) = bb
+
+lemma2 : ∀ (b : Bin)
+  → Can (b I)
+  ----------
+  → BinStartsOne (b I)
+lemma2 b (startsWithOne .(b I) x) = x
+
+
+-- flwByOneFlip : ∀ (b1 b2 : Bin)
+--   → BinStartsOne ((b1 b2) I)
+--   ----
+--   → BinStartsOne (b1 b2)
+-- flwByOneFlip b1 b2 bb = {!   !}
 
 incPreservesOne : ∀ (b : Bin)
   → BinStartsOne b
@@ -355,6 +355,35 @@ natToBinYieldsCan : ∀ (n : ℕ) → Can (natToBin n)
 natToBinYieldsCan zero = zeroIsCan
 natToBinYieldsCan (suc n) = incPreservesCan (natToBin n) (natToBinYieldsCan n)
 
+lemma1 : ∀  (b : Bin)
+  → BinStartsOne b
+  ----------------
+  → natToBin (2 * binToNat b) ≡ b O
+lemma1 .(⟨⟩ I) isOne = refl
+lemma1 .(b I) (flwByOne b bso) =
+  begin
+    natToBin (2 * binToNat (b I))
+  ≡⟨⟩
+    natToBin (2 * suc (2 * binToNat b))
+  ≡⟨ cong natToBin (*-comm 2 (suc (2 * binToNat b))) ⟩
+    natToBin (suc (2 * binToNat b) * 2)
+  ≡⟨ cong natToBin (*-distrib-+ 1 (2 * binToNat b) 2) ⟩
+    natToBin (2 + 2 * binToNat b * 2)
+  ≡⟨⟩
+    natToBin (suc (suc (2 * binToNat b * 2)))
+  ≡⟨⟩
+    inc (natToBin (suc (2 * binToNat b * 2)))
+  ≡⟨⟩
+    inc (inc (natToBin (2 * binToNat b * 2)))
+  ≡⟨⟩
+    {!   !}
+lemma1 .(b O) (flwByZero b bso) =
+  begin
+    natToBin (2 * binToNat (b O))
+  ≡⟨⟩
+    natToBin (2 * (2 * binToNat b))
+  ≡⟨⟩
+    {!   !}
 
 cantofromb : ∀ (b : Bin)
   → Can b
@@ -366,19 +395,19 @@ cantofromb (b O) (startsWithOne .(b O) x) =
     natToBin (binToNat (b O))
   ≡⟨⟩
     natToBin (2 * binToNat b)
-  ≡⟨⟩
-    {!   !}
-cantofromb (b I) (startsWithOne .(b I) x) =
+  ≡⟨ lemma1 b (flwByZeroFlip b x) ⟩
+    b O
+  ∎
+cantofromb (⟨⟩ I) (startsWithOne .(⟨⟩ I) x) = refl
+cantofromb (b I) (startsWithOne (b I) x) =
   begin
+    natToBin (binToNat (b I))
+  ≡⟨⟩
     natToBin (suc (2 * binToNat b))
   ≡⟨⟩
+    inc (natToBin (2 * binToNat b))
+  ≡⟨⟩
     {!   !}
-
-
-
-
-
-
 
 
 

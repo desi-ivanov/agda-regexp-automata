@@ -160,3 +160,79 @@ open import Data.Nat using (ℕ; zero; suc; _+_; _*_; _∸_)
 ∸-+-assoc zero n p rewrite 0∸n≡0 (n + p) |  0∸n≡0 n  | 0∸n≡0 p  = refl
 ∸-+-assoc (suc m) zero p = refl
 ∸-+-assoc (suc m) (suc n) p rewrite ∸-+-assoc m n p = refl
+
+data Bin : Set where
+  ⟨⟩ : Bin
+  _O : Bin → Bin
+  _I : Bin → Bin
+
+inc : Bin → Bin
+inc ⟨⟩ = ⟨⟩ I
+inc (prec O) = prec I
+inc (prec I) = (inc prec) O
+
+natToBin : ℕ → Bin
+natToBin zero = ⟨⟩ O
+natToBin (suc n) = inc (natToBin n)
+
+binToNat : Bin → ℕ
+binToNat ⟨⟩ = 0
+binToNat (b O) = 2 * binToNat b
+binToNat (b I) = suc (2 * binToNat b)
+
+lemma1 : ∀ (b : Bin) → suc (binToNat (b I)) ≡ 2 + binToNat b * 2
+lemma1 ⟨⟩ = refl
+lemma1 (b O) =
+  begin
+    suc (binToNat ((b O) I))
+  ≡⟨⟩
+    suc (suc (2 * (binToNat (b O))))
+  ≡⟨ cong suc (cong suc (*-comm 2 (binToNat (b O)))) ⟩
+    suc (suc (binToNat (b O) * 2))
+  ≡⟨⟩
+    2 + binToNat (b O) * 2
+  ∎
+lemma1 (b I) =
+  begin
+    suc (binToNat ((b I) I))
+  ≡⟨⟩
+    suc (suc (2 * binToNat (b I)))
+  ≡⟨ cong suc (cong suc (*-comm 2 (binToNat (b I)))) ⟩
+    2 + binToNat (b I) * 2
+  ∎
+
+binLaw1 : ∀ (b : Bin) → binToNat (inc b) ≡ suc (binToNat b)
+binLaw1 ⟨⟩ = refl
+binLaw1 (b O) = refl
+binLaw1 (b I) =
+  begin
+    binToNat (inc (b I))
+  ≡⟨⟩
+    binToNat (inc b O)
+  ≡⟨⟩
+    2 * binToNat (inc b)
+  ≡⟨ cong (2 *_) (binLaw1 (b)) ⟩
+    2 * (suc (binToNat b))
+  ≡⟨ *-comm 2 (suc (binToNat b))⟩
+    (suc (binToNat b)) * 2
+  ≡⟨ *-distrib-+ 1 (binToNat b) 2 ⟩
+    2 + ((binToNat b) * 2)
+  ≡⟨ sym (lemma1 b) ⟩
+    suc (binToNat (b I))
+  ∎
+
+binLaw2 : ∀ (n : ℕ) → binToNat (natToBin n) ≡ n
+binLaw2 zero = refl
+binLaw2 (suc n) =
+  begin
+    binToNat (natToBin (suc n))
+  ≡⟨⟩
+    binToNat (inc (natToBin n))
+  ≡⟨ binLaw1 (natToBin n) ⟩
+    suc (binToNat (natToBin n))
+  ≡⟨ cong suc (binLaw2 n) ⟩
+    suc n
+  ∎
+
+-- Claim:  natToBin (binToNat b) ≡ b
+-- does not hold: natToBin (binToNat ⟨⟩) = ⟨⟩ O  and so ⟨⟩ O /= ⟨⟩
