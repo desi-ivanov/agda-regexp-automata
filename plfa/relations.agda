@@ -327,13 +327,6 @@ lemma2 : ∀ (b : Bin)
   → BinStartsOne (b I)
 lemma2 b (startsWithOne .(b I) x) = x
 
-
--- flwByOneFlip : ∀ (b1 b2 : Bin)
---   → BinStartsOne ((b1 b2) I)
---   ----
---   → BinStartsOne (b1 b2)
--- flwByOneFlip b1 b2 bb = {!   !}
-
 incPreservesOne : ∀ (b : Bin)
   → BinStartsOne b
   ----------------
@@ -354,60 +347,60 @@ incPreservesCan (b I) (startsWithOne (b I) x) = startsWithOne (inc (b I)) (incPr
 natToBinYieldsCan : ∀ (n : ℕ) → Can (natToBin n)
 natToBinYieldsCan zero = zeroIsCan
 natToBinYieldsCan (suc n) = incPreservesCan (natToBin n) (natToBinYieldsCan n)
-
-lemma1 : ∀  (b : Bin)
-  → BinStartsOne b
-  ----------------
-  → natToBin (2 * binToNat b) ≡ b O
-lemma1 .(⟨⟩ I) isOne = refl
-lemma1 .(b I) (flwByOne b bso) =
-  begin
-    natToBin (2 * binToNat (b I))
-  ≡⟨⟩
-    natToBin (2 * suc (2 * binToNat b))
-  ≡⟨ cong natToBin (*-comm 2 (suc (2 * binToNat b))) ⟩
-    natToBin (suc (2 * binToNat b) * 2)
-  ≡⟨ cong natToBin (*-distrib-+ 1 (2 * binToNat b) 2) ⟩
-    natToBin (2 + 2 * binToNat b * 2)
-  ≡⟨⟩
-    natToBin (suc (suc (2 * binToNat b * 2)))
-  ≡⟨⟩
-    inc (natToBin (suc (2 * binToNat b * 2)))
-  ≡⟨⟩
-    inc (inc (natToBin (2 * binToNat b * 2)))
-  ≡⟨⟩
-    {!   !}
-lemma1 .(b O) (flwByZero b bso) =
-  begin
-    natToBin (2 * binToNat (b O))
-  ≡⟨⟩
-    natToBin (2 * (2 * binToNat b))
-  ≡⟨⟩
-    {!   !}
-
-cantofromb : ∀ (b : Bin)
-  → Can b
-  -------
-  → natToBin (binToNat b) ≡ b
-cantofromb (⟨⟩ O) zeroIsCan = refl
-cantofromb (b O) (startsWithOne .(b O) x) =
-  begin
-    natToBin (binToNat (b O))
-  ≡⟨⟩
-    natToBin (2 * binToNat b)
-  ≡⟨ lemma1 b (flwByZeroFlip b x) ⟩
-    b O
-  ∎
-cantofromb (⟨⟩ I) (startsWithOne .(⟨⟩ I) x) = refl
-cantofromb (b I) (startsWithOne (b I) x) =
-  begin
-    natToBin (binToNat (b I))
-  ≡⟨⟩
-    natToBin (suc (2 * binToNat b))
-  ≡⟨⟩
-    inc (natToBin (2 * binToNat b))
-  ≡⟨⟩
-    {!   !}
+--
+-- lemma1 : ∀  (b : Bin)
+--   → BinStartsOne b
+--   ----------------
+--   → natToBin (2 * binToNat b) ≡ b O
+-- lemma1 .(⟨⟩ I) isOne = refl
+-- lemma1 .(b I) (flwByOne b bso) =
+--   begin
+--     natToBin (2 * binToNat (b I))
+--   ≡⟨⟩
+--     natToBin (2 * suc (2 * binToNat b))
+--   ≡⟨ cong natToBin (*-comm 2 (suc (2 * binToNat b))) ⟩
+--     natToBin (suc (2 * binToNat b) * 2)
+--   ≡⟨ cong natToBin (*-distrib-+ 1 (2 * binToNat b) 2) ⟩
+--     natToBin (2 + 2 * binToNat b * 2)
+--   ≡⟨⟩
+--     natToBin (suc (suc (2 * binToNat b * 2)))
+--   ≡⟨⟩
+--     inc (natToBin (suc (2 * binToNat b * 2)))
+--   ≡⟨⟩
+--     inc (inc (natToBin (2 * binToNat b * 2)))
+--   ≡⟨⟩
+--     {!   !}
+-- lemma1 .(b O) (flwByZero b bso) =
+--   begin
+--     natToBin (2 * binToNat (b O))
+--   ≡⟨⟩
+--     natToBin (2 * (2 * binToNat b))
+--   ≡⟨⟩
+--     {!   !}
+--
+-- cantofromb : ∀ (b : Bin)
+--   → Can b
+--   -------
+--   → natToBin (binToNat b) ≡ b
+-- cantofromb (⟨⟩ O) zeroIsCan = refl
+-- cantofromb (b O) (startsWithOne .(b O) x) =
+--   begin
+--     natToBin (binToNat (b O))
+--   ≡⟨⟩
+--     natToBin (2 * binToNat b)
+--   ≡⟨ lemma1 b (flwByZeroFlip b x) ⟩
+--     b O
+--   ∎
+-- cantofromb (⟨⟩ I) (startsWithOne .(⟨⟩ I) x) = refl
+-- cantofromb (b I) (startsWithOne (b I) x) =
+--   begin
+--     natToBin (binToNat (b I))
+--   ≡⟨⟩
+--     natToBin (suc (2 * binToNat b))
+--   ≡⟨⟩
+--     inc (natToBin (2 * binToNat b))
+--   ≡⟨⟩
+--     {!   !}
 
 
 
