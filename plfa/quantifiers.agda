@@ -8,7 +8,7 @@ open import Data.Product using (_×_; proj₁; proj₂; Σ) renaming (_,_ to ⟨
 open import Data.Sum using (_⊎_)
 open import Data.Empty using (⊥; ⊥-elim)
 open import isomorphism using (_≃_; extensionality)
-open import relations using (even; odd; Can; BinStartsOne; natToBinYieldsCan)
+open import relations using (even; odd; Can; BinStartsOne; natToBinYieldsCan; cantofromb)
 open import introduction using (Bin; ⟨⟩; _O; _I; inc; natToBin; binToNat; binLaw2)
 
 ∀-elim : ∀ {A : Set} {B : A → Set}
@@ -206,12 +206,6 @@ odd-∃  (odd.suc e)  with even-∃ e
 
 
 -- Establish that there is an isomorphism between ℕ and ∃[ b ](Can b).
-postulate
-  tooHardBinLaw : ∀ (b : Bin)
-      → Can b
-      ---------------
-      → natToBin (binToNat b) ≡ b
-
 ≡One : ∀{b : Bin} (o o' : BinStartsOne b) → o ≡ o'
 ≡One BinStartsOne.isOne BinStartsOne.isOne = refl
 ≡One (BinStartsOne.flwByOne b o) (BinStartsOne.flwByOne .b x) = sym (cong (BinStartsOne.flwByOne b) (≡One x o))
@@ -248,7 +242,7 @@ es3 = record
   { to = es3to
   ; from = es3from
   ; from∘to = λ { x → binLaw2 x}
-  ; to∘from = λ { ⟨ fst , snd ⟩ → proj₁≡→Can≡ ⟨ natToBin (binToNat fst) , natToBinYieldsCan (binToNat fst) ⟩ ⟨ fst , snd ⟩ (tooHardBinLaw fst snd) }
+  ; to∘from = λ { ⟨ fst , snd ⟩ → proj₁≡→Can≡ ⟨ natToBin (binToNat fst) , natToBinYieldsCan (binToNat fst) ⟩ ⟨ fst , snd ⟩ (cantofromb fst snd) }
   }
 
 
