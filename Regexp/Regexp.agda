@@ -242,9 +242,9 @@ seq-idʳ {s} {E} =
 
 
 
-ε-guaranted-* : ∀ {s : String} {E : RegExp}
+ε-guaranteed-* : ∀ {s : String} {E : RegExp}
   → s ∈ℒ(E *) ⇔ s ∈ℒ( (E + ⟨ε⟩) * )
-ε-guaranted-* {s} {E} =
+ε-guaranteed-* {s} {E} =
   record
     { to = to
     ; from = from
