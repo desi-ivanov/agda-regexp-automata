@@ -12,8 +12,8 @@ pattern [_] z = z ∷ []
 ε = []
 
 infixl 6 _+_
-infixl 7 _*
-infixl 8 _,_
+infixl 7 _,_
+infixl 8 _*
 data RegExp : Set where
   ⟨⟩ : RegExp
   ⟨ε⟩ : RegExp
@@ -287,6 +287,39 @@ lemma1 {_} {t} {E} (∈ℒ*-+ {u} {v} x y) z =
     from ∈ℒ*-0 = ∈ℒ*-0
     from {E} (∈ℒ*-+ {ts} {_} x y) with from y
     ... | a = lemma1 x a
+
+lemma2 : ∀ {s}{E}
+  → s ∈ℒ(E)
+    -------
+  → s ∈ℒ(E *)
+lemma2 {s} {E} x = subst (_∈ℒ(E *)) ((++-idʳ s)) (∈ℒ*-+ x ∈ℒ*-0)
+
+-- Extensions
+
+-- One or more instances
+infixl 8 _⁺
+_⁺ : RegExp → RegExp
+E ⁺ = E , E *
+
+⁺law : ∀ {s}{E}
+  → s ∈ℒ(E *) ⇔ s ∈ℒ(E ⁺ + ⟨ε⟩)
+⁺law =
+  record
+    { to = to
+    ; from = from }
+  where
+    to : ∀ {s}{E} → s ∈ℒ (E *) → s ∈ℒ ((E ⁺) + ⟨ε⟩)
+    to ∈ℒ*-0 = ∈ℒ+r ∈ℒ[]
+    to (∈ℒ*-+ x x₁) = ∈ℒ+l (∈ℒ-, x x₁)
+
+    from : ∀ {s}{E} → s ∈ℒ ((E ⁺) + ⟨ε⟩) → s ∈ℒ (E *)
+    from (∈ℒ+l (∈ℒ-, x x₁)) = ∈ℒ*-+ x x₁
+    from (∈ℒ+r ∈ℒ[]) = ∈ℒ*-0
+
+-- Zero or one instance
+infixl 8 _⁇
+_⁇ : RegExp → RegExp
+R ⁇ = R + ⟨ε⟩
 
 
 
