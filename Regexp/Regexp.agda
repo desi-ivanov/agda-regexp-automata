@@ -71,10 +71,19 @@ record _⇔_ (A B : Set) : Set where
     to   : A → B
     from : B → A
 
++-idˡ : ∀ {s : String} {E : RegExp}
+  → s ∈ℒ(E) ≃ s ∈ℒ(⟨⟩ + E)
++-idˡ =
+  record
+    { to      = ∈ℒ+r
+    ; from    = λ{ (∈ℒ+r x) → x}
+    ; from∘to = λ{x → refl}
+    ; to∘from = λ{ (∈ℒ+r y) → refl}
+    }
 
-+-id : ∀ {s : String} {E : RegExp}
++-idʳ : ∀ {s : String} {E : RegExp}
   → s ∈ℒ(E) ≃ s ∈ℒ(E + ⟨⟩)
-+-id =
++-idʳ =
   record
     { to      = ∈ℒ+l
     ; from    = λ{ (∈ℒ+l x) → x }
@@ -82,6 +91,25 @@ record _⇔_ (A B : Set) : Set where
     ; to∘from = λ{ (∈ℒ+l y) → refl }
     }
 
+seq-nullʳ : ∀ {s : String} {E : RegExp}
+  → s ∈ℒ(⟨⟩ , E) ≃ s ∈ℒ(⟨⟩)
+seq-nullʳ =
+  record
+    { to = λ{ (∈ℒ-, () _)}
+    ; from = λ()
+    ; from∘to = λ{ (∈ℒ-, () _) }
+    ; to∘from = λ{ ()}
+    }
+
+seq-nullˡ : ∀ {s : String} {E : RegExp}
+  → s ∈ℒ(E , ⟨⟩) ≃ s ∈ℒ(⟨⟩)
+seq-nullˡ =
+  record
+    { to = λ{ (∈ℒ-, _ ())}
+    ; from = λ()
+    ; from∘to = λ{ (∈ℒ-, _ ()) }
+    ; to∘from = λ{ ()}
+    }
 
 
 +-comm : ∀ {s : String} {E F : RegExp}
@@ -241,7 +269,6 @@ seq-idʳ {s} {E} =
     from {E} {v} x = subst (_∈ℒ(E , ⟨ε⟩)) (++-idʳ v) (∈ℒ-, x ∈ℒ[])
 
 
-
 ε-guaranteed-* : ∀ {s : String} {E : RegExp}
   → s ∈ℒ(E *) ⇔ s ∈ℒ( (E + ⟨ε⟩) * )
 ε-guaranteed-* {s} {E} =
@@ -260,6 +287,13 @@ seq-idʳ {s} {E} =
     from (∈ℒ*-+ {v} (∈ℒ+l x) y) = ∈ℒ*-+ x (from y)
     from (∈ℒ*-+ {[]} (∈ℒ+r x) y) = from y
 
++-idempotent : ∀ {s : String} {E : RegExp}
+  → s ∈ℒ(E + E) ⇔ s ∈ℒ(E)
++-idempotent {s}{E} =
+  record
+    { to = λ{ (∈ℒ+l x) → x ; (∈ℒ+r x) → x }
+    ; from = ∈ℒ+l
+    }
 
 lemma1 : ∀ {s}{t}{E}
   → s ∈ℒ(E *)
@@ -287,6 +321,27 @@ lemma1 {_} {t} {E} (∈ℒ*-+ {u} {v} x y) z =
     from ∈ℒ*-0 = ∈ℒ*-0
     from {E} (∈ℒ*-+ {ts} {_} x y) with from y
     ... | a = lemma1 x a
+
+zero* : ∀ {s}
+  → s ∈ℒ(⟨⟩ *) ⇔ s ∈ℒ(⟨ε⟩)
+zero* =
+  record
+    { to = λ{ ∈ℒ*-0 → ∈ℒ[] }
+    ; from = λ{ ∈ℒ[] → ∈ℒ*-0 }
+    }
+
+one* : ∀ {s} → s ∈ℒ(⟨ε⟩ *) ⇔ s ∈ℒ(⟨ε⟩)
+one* {s} =
+  record
+    { to = to
+    ; from = λ{ ∈ℒ[] → ∈ℒ*-0 }
+    }
+  where
+    to : s ∈ℒ(⟨ε⟩ *) → s ∈ℒ(⟨ε⟩)
+    to ∈ℒ*-0 = ∈ℒ[]
+    to (∈ℒ*-+ ∈ℒ[] x) = to x
+
+
 
 lemma2 : ∀ {s}{E}
   → s ∈ℒ(E)
