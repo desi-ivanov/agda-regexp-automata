@@ -8,7 +8,6 @@ open import Data.Char as Char
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import String using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ)
 
-pattern [_] z = z ∷ []
 ε = []
 
 infixl 6 _+_
@@ -28,7 +27,7 @@ data _∈ℒ_ : String → RegExp → Set where
     ε ∈ℒ( ⟨ε⟩ )
   ∈ℒc :
     (c : Char)
-    → [ c ] ∈ℒ( Atom c )
+    →  (c ∷ []) ∈ℒ( Atom c )
   ∈ℒ-, :
     ∀ {s t} {E F}
     → s ∈ℒ( E )
