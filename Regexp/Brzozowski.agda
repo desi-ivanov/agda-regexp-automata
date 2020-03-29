@@ -72,8 +72,8 @@ postulate
     → ε ∈ℒ(E) × ε ∈ℒ(F)
   split-seq : ∀ {a}{s} {E F}
     → (a ∷ s) ∈ℒ(E , F)
-      ---------------------------------------------------------------------
-    → ∃[ t ] (∃[ u ] ( (a ∷ s) ≡ (a ∷ t) ++ u × (a ∷ t) ∈ℒ(E) × u ∈ℒ(F) ))
+      --------------------------------------------------------------------------------------------------
+    → ∃[ t ] (∃[ u ] ( (a ∷ s) ≡ (a ∷ t) ++ u × (a ∷ t) ∈ℒ(E) × u ∈ℒ(F) )) ⊎ (ε ∈ℒ(E) × (a ∷ s) ∈ℒ(F))
   split-* : ∀ {a}{s}{E}
     → (a ∷ s) ∈ℒ(E *)
       ---------------
@@ -128,8 +128,10 @@ theorem2  = record { to = to ; from = from }
     from {a} {v} {F + G} (∈ℒ+r x) = ∈ℒ+r (from x)
 
     from {a} {v} {F , G} x with isNullable F | split-seq x
-    from {a} {v} {F , G} x | yes p | ⟨ _ , ⟨ _ , ⟨ refl , ⟨ e , f ⟩ ⟩ ⟩ ⟩ = ∈ℒ+l (∈ℒ-, (from e) f)
-    from {a} {v} {F , G} x | no ¬p | ⟨ _ , ⟨ _ , ⟨ refl , ⟨ e , f ⟩ ⟩ ⟩ ⟩ = ∈ℒ-, (from e) f
+    from {a} {v} {F , G} x | yes p | inj₁ ⟨ _ , ⟨ _ , ⟨ refl , ⟨ e , f ⟩ ⟩ ⟩ ⟩ = ∈ℒ+l (∈ℒ-, (from e) f)
+    from {a} {v} {F , G} x | yes p | inj₂ ⟨ fst , snd ⟩ = ∈ℒ+r (from snd)
+    from {a} {v} {F , G} x | no ¬p | inj₁ ⟨ _ , ⟨ _ , ⟨ refl , ⟨ e , f ⟩ ⟩ ⟩ ⟩ = ∈ℒ-, (from e) f
+    from {a} {v} {F , G} x | no ¬p | inj₂ ⟨ fst , snd ⟩ = ⊥-elim (¬p ((_⇔_.to theorem1) fst))
 
     from {a} {v} {F *} x with  split-* x
     from {a} {v} {F *} x | inj₁ y = subst (_∈ℒ(F [ a ] , F *)) (++-idʳ v) (∈ℒ-, (from y) ∈ℒ*-0)
