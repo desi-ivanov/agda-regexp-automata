@@ -27,3 +27,7 @@ _++_ : String → String → String
 ++-idˡ : ∀ (s : String)  → ([] ++ s) ≡ s
 ++-idˡ [] = refl
 ++-idˡ (x ∷ x₁) = refl
+
+foldl : ∀ {B : Set} → (Char → B → B) → B →  String → B
+foldl f b [] = b
+foldl f b (x ∷ xs) = foldl f (f x b) xs
