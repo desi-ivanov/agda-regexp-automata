@@ -9,7 +9,7 @@ open import Data.Char as Char
 open import String using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ; foldl)
 
 open import Relation.Nullary using (Dec; ¬_; yes; no)
-open import Data.Product using (_×_; Σ; ∃; Σ-syntax; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
+open import Data.Product using (_×_; Σ; ∃; Σ-syntax; ∃-syntax; _,_)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 
@@ -17,7 +17,7 @@ data Nullable : RegExp → Set where
   null⟨ε⟩ : Nullable ⟨ε⟩
   null+l : ∀{F G} → Nullable F → Nullable (F + G)
   null+r : ∀{F G} → Nullable G → Nullable (F + G)
-  null, : ∀{F G} → Nullable F → Nullable G → Nullable (F , G)
+  null, : ∀{F G} → Nullable F → Nullable G → Nullable (F · G)
   null* : ∀{F} → Nullable (F *)
 
 ⊥-elim-sum : ∀ {A B : Set} → ¬ A → ¬ B → A ⊎ B → ⊥
@@ -25,15 +25,15 @@ data Nullable : RegExp → Set where
 ⊥-elim-sum a b (inj₂ y) = b y
 
 ⊥-elim-product : ∀ {A B : Set} → ¬ A ⊎ ¬ B → A × B → ⊥
-⊥-elim-product (inj₁ x) ⟨ fst , snd ⟩ = x fst
-⊥-elim-product (inj₂ y) ⟨ fst , snd ⟩ = y snd
+⊥-elim-product (inj₁ x) (fst , snd) = x fst
+⊥-elim-product (inj₂ y) (fst , snd) = y snd
 
 sumnullable : ∀ {E F} → Nullable (E + F) → Nullable E ⊎ Nullable F
 sumnullable (null+l a) = inj₁ a
 sumnullable (null+r a) = inj₂ a
 
-seqnullable : ∀ {E F} → Nullable (E , F) → Nullable E × Nullable F
-seqnullable (null, x y) = ⟨ x , y ⟩
+seqnullable : ∀ {E F} → Nullable (E · F) → Nullable E × Nullable F
+seqnullable (null, x y) = x , y
 
 
 isNullable : (E : RegExp) → Dec (Nullable E)
@@ -45,11 +45,11 @@ isNullable (r + s) | yes p | yes p₁ = yes (null+l p)
 isNullable (r + s) | yes p | no ¬p = yes (null+l p)
 isNullable (r + s) | no ¬p | yes p = yes (null+r p)
 isNullable (r + s) | no p | no p2 = no (λ x → ⊥-elim-sum p p2 (sumnullable x))
-isNullable (r , s)  with isNullable r | isNullable s
-isNullable (r , s) | yes p | yes p₁ = yes (null, p p₁)
-isNullable (r , s) | yes p | no ¬p = no λ x → ⊥-elim-product (inj₂ ¬p) (seqnullable x)
-isNullable (r , s) | no ¬p | yes p = no λ x → ⊥-elim-product (inj₁ ¬p) (seqnullable x)
-isNullable (r , s) | no ¬p | no ¬p₁ = no λ x → ⊥-elim-product (inj₁ ¬p) (seqnullable x)
+isNullable (r · s)  with isNullable r | isNullable s
+isNullable (r · s) | yes p | yes p₁ = yes (null, p p₁)
+isNullable (r · s) | yes p | no ¬p = no λ x → ⊥-elim-product (inj₂ ¬p) (seqnullable x)
+isNullable (r · s) | no ¬p | yes p = no λ x → ⊥-elim-product (inj₁ ¬p) (seqnullable x)
+isNullable (r · s) | no ¬p | no ¬p₁ = no λ x → ⊥-elim-product (inj₁ ¬p) (seqnullable x)
 isNullable (r *) = yes null*
 
 infixl 11 _[_]
@@ -60,99 +60,101 @@ _[_] : RegExp → Char → RegExp
 ... | yes p = ⟨ε⟩
 ... | no ¬p = ⟨⟩
 (F + G) [ a ] = F [ a ] + G [ a ]
-(F , G) [ a ] with isNullable F
-...        | yes  _ = (F [ a ]) , G + G [ a ]
-...        | no _ = (F [ a ]) , G
-(F *) [ a ] = (F [ a ]) ,  F *
+(F · G) [ a ] with isNullable F
+...        | yes  _ = (F [ a ]) · G + G [ a ]
+...        | no _ = (F [ a ]) · G
+(F *) [ a ] = (F [ a ]) ·  F *
 
-postulate
-  split-* : ∀ {a}{s}{E}
-    → (a ∷ s) ∈ℒ(E *)
-      ---------------
-    → (a ∷ s) ∈ℒ(E) ⊎  (∃[ t ] (∃[ u ] ( (a ∷ s) ≡ (a ∷ t) ++ u × (a ∷ t) ∈ℒ(E) × u ∈ℒ(E *) )))
+
+lemma3 : ∀{s E F} -> s ∈ (E · F) -> ∃[ u ] ∃[ v ] ((s ≡ u ++ v) × (u ∈ E) × (v ∈ F))
+lemma3 (in-· p q) = _ , _ , refl , p , q
+
+lemma4 : ∀(u v : String) -> [] ≡ u ++ v -> u ≡ [] × v ≡ []
+lemma4 [] [] refl = refl , refl
+
+
+ε-seq : ∀{E F} -> ε ∈ (E · F) -> ε ∈ E × ε ∈ F
+ε-seq p with lemma3 p
+... | u , v , eq , p1 , p2 with lemma4 u v eq
+... | eq1 , eq2 rewrite eq1 | eq2 = p1 , p2
+
+split-seq : ∀ {a}{s} {E F}
+  → (a ∷ s) ∈(E · F)
+    --------------------------------------------------------------------------------------------
+  → ∃[ t ] (∃[ u ] ( (a ∷ s) ≡ (a ∷ t) ++ u × (a ∷ t) ∈(E) × u ∈(F) )) ⊎ (ε ∈(E) × (a ∷ s) ∈(F))
+split-seq {a} {s} {E} {F} x with lemma3 {a ∷ s} {E} {F} x
+... | [] , a ∷ s , refl , p1 , p2 = inj₂ (p1 , p2)
+... | a ∷ u , [] , refl , p1 , p2 = inj₁ (u , [] , refl , p1 , p2)
+... | a ∷ u , b ∷ v , refl , p1 , p2 = inj₁ (u , b ∷ v , refl , p1 , p2)
+
+split-* : ∀{E s}
+  -> s ∈ (E *)
+  -> ¬ (s ≡ [])
+  -> ∃[ u ] ∃[ v ] (¬ (u ≡ []) × s ≡ u ++ v × u ∈ E × v ∈ (E *))
+split-* in-*1 q = ⊥-elim (q refl)
+split-* (in-*2 {[]} p q) neps = split-* q neps
+split-* (in-*2 {x ∷ s} {t} p q) _ = x ∷ s , t , (λ ()) , refl , p , q
 
 theorem1 : ∀ {E : RegExp}
-  → ε ∈ℒ(E) ⇔ Nullable E
+  → ε ∈(E) ⇔ Nullable E
 theorem1 = record { to = to ; from = from }
   where
-    to : ∀ {E} → ε ∈ℒ E → Nullable E
+    to : ∀ {E} → ε ∈ E → Nullable E
     to {⟨ε⟩} x = null⟨ε⟩
-    to {E + F} (∈ℒ+l x) = null+l (to x)
-    to {E + F} (∈ℒ+r x) = null+r (to x)
-    to {E , F} (∈ℒ-,eps-l x x₁) = null, (to x) (to x₁)
-    to {E , F} (∈ℒ-,eps-r x x₁) = null, (to x) (to x₁)
+    to {E + F} (in+l x) = null+l (to x)
+    to {E + F} (in+r x) = null+r (to x)
+    to {E · F} x with ε-seq x
+    to {E · F} x | fst , snd = null, (to fst) (to snd)
     to {E *} x = null*
 
-    from : ∀ {E} →  Nullable E → ε ∈ℒ E
-    from null⟨ε⟩ = ∈ℒ[]
-    from (null+l x) = ∈ℒ+l (from x)
-    from (null+r x) = ∈ℒ+r (from x)
-    from (null, x y) = ∈ℒ-,eps-l (from x) (from y)
-    from null* = ∈ℒ*-0
+    from : ∀ {E} →  Nullable E → ε ∈ E
+    from null⟨ε⟩ = in-ε
+    from (null+l x) = in+l (from x)
+    from (null+r x) = in+r (from x)
+    from (null, x y) = in-· (from x) (from y)
+    from null* = in-*1
 
 theorem2 : ∀ {a}{v}{F}
-  →  v ∈ℒ(F [ a ]) ⇔ (a ∷ v) ∈ℒ(F)
+  →  v ∈(F [ a ]) ⇔ (a ∷ v) ∈(F)
 theorem2  = record { to = to ; from = from }
   where
-    to : ∀ {a}{v}{E} → v ∈ℒ(E [ a ]) → (a ∷ v) ∈ℒ( E )
+    to : ∀ {a}{v}{E} → v ∈(E [ a ]) → (a ∷ v) ∈( E )
     to {a} {v} {Atom c} x with c ≟ a
-    to {_} {[]} {Atom c} x | yes refl = ∈ℒc c
+    to {_} {[]} {Atom c} x | yes refl = in-c c
+    to {a} {v} {E + F} (in+l x) = in+l (to x)
+    to {a} {v} {E + F} (in+r x) = in+r (to x)
+    to {a} {v} {E · F} x with isNullable E
+    to {a} {v} {E · F} (in+l x) | yes p with (_⇔_.from theorem1) p
+    to {a} {v} {E · F} (in+l (in-· x y)) | yes p | u = in-· (to x) y
+    to {a} {v} {E · F} (in+r x) | yes p = in-· ((_⇔_.from theorem1) p) (to x)
+    to {a} {v} {E · F} (in-· x y) | no ¬p  =  in-· (to x) y
+    to {a} {_} {E *} (in-· x y) = in-*2 (to x) y
 
-    to {a} {v} {E + F} (∈ℒ+l x) = ∈ℒ+l (to x)
-    to {a} {v} {E + F} (∈ℒ+r x) = ∈ℒ+r (to x)
-
-    to {a} {v} {E , F} x with isNullable E
-    to {a} {_} {E , F} (∈ℒ+l (∈ℒ-,  x x₁)) | yes p = ∈ℒ-, (to x) x₁
-    to {a} {[]} {E , F} (∈ℒ+l (∈ℒ-,eps-l x x₁)) | yes p = ∈ℒ-,eps-r (to x) x₁
-    to {a} {x₂ ∷ v} {E , F} (∈ℒ+l (∈ℒ-,eps-l x x₁)) | yes p = ∈ℒ-, (to x) x₁
-    to {a} {v} {E , F} (∈ℒ+l (∈ℒ-,eps-r x x₁)) | yes p = ∈ℒ-,eps-r (to x) x₁
-
-    to {a} {[]} {E , F} (∈ℒ+r  x) | yes p = ∈ℒ-,eps-l ((_⇔_.from theorem1) p) (to x)
-    to {a} {v ∷ vs} {E , F} (∈ℒ+r  x) | yes p = ∈ℒ-,eps-l ((_⇔_.from theorem1) p) (to  x)
-
-    to {a} {_} {E , F} (∈ℒ-, x y) | no ¬p = ∈ℒ-, (to  x) y
-    to {a} {[]} {E , F} (∈ℒ-,eps-l x x₁) | no ¬p = ∈ℒ-,eps-r (to x) x₁
-    to {a} {x₂ ∷ v} {E , F} (∈ℒ-,eps-l x x₁) | no ¬p = ∈ℒ-, (to  x) x₁
-    to {a} {v} {E , F} (∈ℒ-,eps-r x x₁) | no ¬p = ∈ℒ-,eps-r (to x) x₁
-
-    to {a} {v} {E *} (∈ℒ-, {t} {u} x y) = ∈ℒ*-+ (to x) y
-    to {a} {v} {E *} (∈ℒ-,eps-l x x₁) = ∈ℒ*-+ (to x) x₁
-    to {a} {v} {E *} (∈ℒ-,eps-r x x₁) = subst (_∈ℒ(E *)) (++-idʳ (a ∷ v)) (∈ℒ*-+ (to x) x₁)
-
-    from : ∀ {a}{v}{F} → (a ∷ v) ∈ℒ F → v ∈ℒ F [ a ]
-    from {_} {_} {Atom c} (∈ℒc .c) with c ≟ c
-    from {_} {_} {Atom c} (∈ℒc .c) | yes p = ∈ℒ[]
-    from {_} {_} {Atom c} (∈ℒc .c) | no ¬p = ⊥-elim (¬p refl)
-
-    from {a} {v} {F + G} (∈ℒ+l x) = ∈ℒ+l (from x)
-    from {a} {v} {F + G} (∈ℒ+r x) = ∈ℒ+r (from x)
-
-    from {a} {v} {F , G} x with isNullable F
-    from {a} {_} {F , G} (∈ℒ-, {a} {b} {[]} {t} x y) | yes p = ∈ℒ+l (∈ℒ-,eps-l (from x) y)
-    from {a} {_} {F , G} (∈ℒ-, {a} {b} {x₁ ∷ s} {t} x y) | yes p = ∈ℒ+l (∈ℒ-, (from x) y)
-    from {a} {v} {F , G} (∈ℒ-,eps-l x y) | yes p = ∈ℒ+r (from y)
-    from {a} {v} {F , G} (∈ℒ-,eps-r x y) | yes p = ∈ℒ+l (∈ℒ-,eps-r (from x) y)
-    from {a} {_} {F , G} (∈ℒ-, {a} {b} {[]} {t} x y) | no ¬p = ∈ℒ-,eps-l (from x) y
-    from {a} {_} {F , G} (∈ℒ-, {a} {b} {x₁ ∷ s} {t} x y) | no ¬p = ∈ℒ-, (from x) y
-    from {a} {v} {F , G} (∈ℒ-,eps-l x y) | no ¬p = ⊥-elim (¬p ((_⇔_.to theorem1) x))
-    from {a} {v} {F , G} (∈ℒ-,eps-r x y) | no ¬p = ∈ℒ-,eps-r (from x) y
-
-    from {a} {v} {F *} x with split-* x
-    from {a} {v} {F *} x | inj₁ y = ∈ℒ-,eps-r (from y) ∈ℒ*-0
-    from {a} {_} {F *} x | inj₂ ⟨ fst , ⟨ [] , ⟨ refl , ⟨ e , f ⟩ ⟩ ⟩ ⟩  =
-      subst (_∈ℒ(F [ a ] , F *)) (sym (++-idʳ fst)) (∈ℒ-,eps-r (from e) f)
-    from {a} {_} {F *} x | inj₂ ⟨ [] , ⟨ z ∷ zs , ⟨ refl , ⟨ e , f ⟩ ⟩ ⟩ ⟩ = ∈ℒ-,eps-l (from e) f
-    from {a} {_} {F *} x | inj₂ ⟨ y ∷ ys , ⟨ z ∷ zs , ⟨ refl , ⟨ e , f ⟩ ⟩ ⟩ ⟩ = ∈ℒ-, (from e) f
+    from : ∀ {a}{v}{F} → (a ∷ v) ∈ F → v ∈ F [ a ]
+    from {_} {_} {Atom c} (in-c .c) with c ≟ c
+    ... | yes p = in-ε
+    ... | no ¬p = ⊥-elim (¬p refl)
+    from {a} {v} {F + G} (in+l x) = in+l (from x)
+    from {a} {v} {F + G} (in+r x) = in+r (from x)
+    from {a} {v} {F · G} x with isNullable F | split-seq x
+    ... | yes p | inj₁ (_ , _ , refl , e , f) =  in+l (in-· (from e) f)
+    ... | yes p | inj₂ (fst , snd)  = in+r (from snd)
+    ... | no ¬p | inj₁ (_ , _ , refl , e , f) = in-· (from e) f
+    ... | no ¬p | inj₂ (fst , snd)  = ⊥-elim (¬p ((_⇔_.to theorem1) fst))
+    from {_} {_} {F *} x with split-* x (λ ())
+    ... | [] , a ∷ v , d , e , f = ⊥-elim (d refl)
+    ... | a ∷ v , [] , d , refl , fst , snd = in-· (from fst) snd
+    ... | a ∷ u , t ∷ ts , d , refl , fst , snd = in-· (from fst) snd
 
 theorem3 : ∀ {v} {F}
-  → v ∈ℒ(F) ⇔ Nullable (foldl (λ a E → E [ a ]) F v)
+  → v ∈(F) ⇔ Nullable (foldl (λ a E → E [ a ]) F v)
 theorem3 = record { to = to ; from = from }
   where
-    to : ∀ {v} {F} → v ∈ℒ(F) → Nullable (foldl (λ a E → E [ a ]) F v)
+    to : ∀ {v} {F} → v ∈(F) → Nullable (foldl (λ a E → E [ a ]) F v)
     to {[]} {F} x = _⇔_.to theorem1 x
     to {v ∷ vs} {F} x = to (_⇔_.from theorem2 x)
 
-    from : ∀ {v} {F} → Nullable (foldl (λ a E → E [ a ]) F v) → v ∈ℒ F
+    from : ∀ {v} {F} → Nullable (foldl (λ a E → E [ a ]) F v) → v ∈ F
     from {[]} {F} x = _⇔_.from theorem1 x
     from {v ∷ vs} {F} x = _⇔_.to theorem2 (from {vs} {F [ v ]} x)
 

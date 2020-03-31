@@ -11,54 +11,44 @@ open import String using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ)
 ε = []
 
 infixl 6 _+_
-infixl 7 _,_
+infixl 7 _·_
 infixl 8 _*
 data RegExp : Set where
   ⟨⟩ : RegExp
   ⟨ε⟩ : RegExp
   Atom : (c : Char) → RegExp
   _+_ : RegExp → RegExp → RegExp
-  _,_ : RegExp → RegExp → RegExp
+  _·_ : RegExp → RegExp → RegExp
   _* : RegExp → RegExp
 
-infix 10 _∈ℒ_
-data _∈ℒ_ : String → RegExp → Set where
-  ∈ℒ[] :
-    ε ∈ℒ( ⟨ε⟩ )
-  ∈ℒc :
+infix 10 _∈_
+data _∈_ : String → RegExp → Set where
+  in-ε :
+    ε ∈( ⟨ε⟩ )
+  in-c :
     (c : Char)
-    →  (c ∷ []) ∈ℒ( Atom c )
-  ∈ℒ-, :
-    ∀ {a b} {s t} {E F}
-    → (a ∷ s) ∈ℒ( E )
-    → (b ∷ t) ∈ℒ( F )
-    → ((a ∷ s) ++ (b ∷ t)) ∈ℒ( E , F )
-  ∈ℒ-,eps-l :
-    ∀ {s} {E F}
-    → ε ∈ℒ( E )
-    → s ∈ℒ( F )
-    → s ∈ℒ( E , F )
-  ∈ℒ-,eps-r :
-    ∀ {s} {E F}
-    → s ∈ℒ( E )
-    → ε ∈ℒ( F )
-    → s ∈ℒ( E , F )
-  ∈ℒ+l :
+    → (c ∷ []) ∈( Atom c )
+  in-· :
+    ∀ {s t} {E F}
+    → s ∈ E
+    → t ∈ F
+    → (s ++ t) ∈( E · F )
+  in+l :
       ∀ {s} {E F}
-    → s ∈ℒ( E )
-    → s ∈ℒ( E + F )
-  ∈ℒ+r :
+    → s ∈( E )
+    → s ∈( E + F )
+  in+r :
     ∀ {s} {E F}
-    → s ∈ℒ( F )
-    → s ∈ℒ( E + F )
-  ∈ℒ*-0 :
-    ∀ {E}
-    → ε ∈ℒ( E * )
-  ∈ℒ*-+ :
-    ∀ {s t} {E}
-    → s ∈ℒ( E )
-    → t ∈ℒ( E * )
-    → (s ++ t) ∈ℒ( E * )
+    → s ∈( F )
+    → s ∈( E + F )
+  in-*1 :
+     ∀ {E}
+     → ε ∈ (E *)
+  in-*2 :
+     ∀ {s t} {E}
+     → s ∈ E
+     → t ∈ (E *)
+     → (s ++ t) ∈ (E *)
 
 infix 0 _≃_
 record _≃_ (A B : Set) : Set where
@@ -68,12 +58,6 @@ record _≃_ (A B : Set) : Set where
     from∘to : ∀ (x : A) → from (to x) ≡ x
     to∘from : ∀ (y : B) → to (from y) ≡ y
 
-postulate
-  ∀-extensionality : ∀ {A : Set} {B : A → Set} {f g : ∀(x : A) → B x}
-    → (∀ (x : A) → f x ≡ g x)
-      -----------------------
-    → f ≡ g
-
 infix 0 _⇔_
 record _⇔_ (A B : Set) : Set where
   field
@@ -81,48 +65,48 @@ record _⇔_ (A B : Set) : Set where
     from : B → A
 
 +-idˡ : ∀ {s : String} {E : RegExp}
-  → s ∈ℒ(E) ≃ s ∈ℒ(⟨⟩ + E)
+  → s ∈(E) ≃ s ∈(⟨⟩ + E)
 +-idˡ =
   record
-    { to      = ∈ℒ+r
-    ; from    = λ{ (∈ℒ+r x) → x}
+    { to      = in+r
+    ; from    = λ{ (in+r x) → x}
     ; from∘to = λ{x → refl}
-    ; to∘from = λ{ (∈ℒ+r y) → refl}
+    ; to∘from = λ{ (in+r y) → refl}
     }
 
 +-idʳ : ∀ {s : String} {E : RegExp}
-  → s ∈ℒ(E) ≃ s ∈ℒ(E + ⟨⟩)
+  → s ∈(E) ≃ s ∈(E + ⟨⟩)
 +-idʳ =
   record
-    { to      = ∈ℒ+l
-    ; from    = λ{ (∈ℒ+l x) → x }
+    { to      = in+l
+    ; from    = λ{ (in+l x) → x }
     ; from∘to = λ x → refl
-    ; to∘from = λ{ (∈ℒ+l y) → refl }
+    ; to∘from = λ{ (in+l y) → refl }
     }
 
 seq-nullʳ : ∀ {s : String} {E : RegExp}
-  → s ∈ℒ(⟨⟩ , E) ≃ s ∈ℒ(⟨⟩)
+  → s ∈(⟨⟩ · E) ≃ s ∈(⟨⟩)
 seq-nullʳ =
   record
-    { to = λ{ (∈ℒ-, () _)}
+    { to = λ{ (in-· () _)}
     ; from = λ()
-    ; from∘to = λ{ (∈ℒ-, () _) }
+    ; from∘to = λ{ (in-· () _) }
     ; to∘from = λ{ ()}
     }
 
 seq-nullˡ : ∀ {s : String} {E : RegExp}
-  → s ∈ℒ(E , ⟨⟩) ≃ s ∈ℒ(⟨⟩)
+  → s ∈(E · ⟨⟩) ≃ s ∈(⟨⟩)
 seq-nullˡ =
   record
-    { to = λ{ (∈ℒ-, _ ())}
+    { to = λ{ (in-· _ ())}
     ; from = λ()
-    ; from∘to = λ{ (∈ℒ-, _ ()) }
+    ; from∘to = λ{ (in-· _ ()) }
     ; to∘from = λ{ ()}
     }
 
 
 +-comm : ∀ {s : String} {E F : RegExp}
-  → s ∈ℒ(E + F) ≃ s ∈ℒ(F + E)
+  → s ∈(E + F) ≃ s ∈(F + E)
 +-comm {s} {E} {F} =
   record
     { to      = to
@@ -131,26 +115,26 @@ seq-nullˡ =
     ; to∘from = to∘from
     }
   where
-    to : s ∈ℒ(E + F) → s ∈ℒ(F + E)
-    to (∈ℒ+l sef) = ∈ℒ+r sef
-    to (∈ℒ+r sef) = ∈ℒ+l sef
+    to : s ∈(E + F) → s ∈(F + E)
+    to (in+l sef) = in+r sef
+    to (in+r sef) = in+l sef
 
-    from : s ∈ℒ(F + E) → s ∈ℒ(E + F)
-    from (∈ℒ+l x) = ∈ℒ+r x
-    from (∈ℒ+r x) = ∈ℒ+l x
+    from : s ∈(F + E) → s ∈(E + F)
+    from (in+l x) = in+r x
+    from (in+r x) = in+l x
 
-    from∘to : (x : s ∈ℒ (E + F)) → from (to x) ≡ x
-    from∘to (∈ℒ+l x) = refl
-    from∘to (∈ℒ+r x) = refl
+    from∘to : (x : s ∈ (E + F)) → from (to x) ≡ x
+    from∘to (in+l x) = refl
+    from∘to (in+r x) = refl
 
-    to∘from : (x : s ∈ℒ (F + E)) → to (from x) ≡ x
-    to∘from (∈ℒ+l x) = refl
-    to∘from (∈ℒ+r x) = refl
+    to∘from : (x : s ∈ (F + E)) → to (from x) ≡ x
+    to∘from (in+l x) = refl
+    to∘from (in+r x) = refl
 
 
 
 +-assoc : ∀ {s : String} {E F G : RegExp}
-  → s ∈ℒ(E + (F + G)) ≃ s ∈ℒ((E + F) + G)
+  → s ∈(E + (F + G)) ≃ s ∈((E + F) + G)
 +-assoc {s} {E} {F} {G} =
   record
     { to = to
@@ -158,242 +142,230 @@ seq-nullˡ =
     ; from∘to = from∘to
     ; to∘from = to∘from }
   where
-    to : s ∈ℒ (E + (F + G)) → s ∈ℒ (E + F + G)
-    to (∈ℒ+l x) = ∈ℒ+l (∈ℒ+l x)
-    to (∈ℒ+r (∈ℒ+l x)) = ∈ℒ+l (∈ℒ+r x)
-    to (∈ℒ+r (∈ℒ+r x)) = ∈ℒ+r x
+    to : s ∈ (E + (F + G)) → s ∈ (E + F + G)
+    to (in+l x) = in+l (in+l x)
+    to (in+r (in+l x)) = in+l (in+r x)
+    to (in+r (in+r x)) = in+r x
 
-    from : s ∈ℒ (E + F + G) → s ∈ℒ (E + (F + G))
-    from (∈ℒ+l (∈ℒ+l x)) = ∈ℒ+l x
-    from (∈ℒ+l (∈ℒ+r x)) = ∈ℒ+r (∈ℒ+l x)
-    from (∈ℒ+r x) = ∈ℒ+r (∈ℒ+r x)
+    from : s ∈ (E + F + G) → s ∈ (E + (F + G))
+    from (in+l (in+l x)) = in+l x
+    from (in+l (in+r x)) = in+r (in+l x)
+    from (in+r x) = in+r (in+r x)
 
-    from∘to : (x : s ∈ℒ (E + (F + G))) → from (to x) ≡ x
-    from∘to (∈ℒ+l x) = refl
-    from∘to (∈ℒ+r (∈ℒ+l x)) = refl
-    from∘to (∈ℒ+r (∈ℒ+r x)) = refl
+    from∘to : (x : s ∈ (E + (F + G))) → from (to x) ≡ x
+    from∘to (in+l x) = refl
+    from∘to (in+r (in+l x)) = refl
+    from∘to (in+r (in+r x)) = refl
 
-    to∘from : (y : s ∈ℒ (E + F + G)) → to (from y) ≡ y
-    to∘from (∈ℒ+l (∈ℒ+l y)) = refl
-    to∘from (∈ℒ+l (∈ℒ+r y)) = refl
-    to∘from (∈ℒ+r y) = refl
+    to∘from : (y : s ∈ (E + F + G)) → to (from y) ≡ y
+    to∘from (in+l (in+l y)) = refl
+    to∘from (in+l (in+r y)) = refl
+    to∘from (in+r y) = refl
 
 
+
+seq-assoc : ∀ {s : String} {E F G : RegExp}
+  → s ∈(E · (F · G)) ⇔ s ∈((E · F) · G)
+seq-assoc {s} {E} {F} {G} =
+  record
+    { to = to
+    ; from = from
+    }
+  where
+    to : ∀ {s} {E} {F} {G} →  s ∈ (E · (F · G)) → s ∈ ((E · F) · G)
+    to {_} {E} {F} {G} (in-· {t} x (in-· {u} {v} y z)) =
+      subst (_∈((E · F) · G)) (++-assoc t u v) ((in-· (in-· x y) z))
+
+    from : ∀ {s} {E} {F} {G} →  s ∈ ((E · F) · G) → s ∈ (E · (F · G))
+    from {_} {E} {F} {G} (in-· {_} {v} (in-· {t} {u} x y) z) =
+      subst (_∈(E · (F · G))) (sym (++-assoc t u v)) (in-· x (in-· y z))
+
+
+
+seq-distrib-+ˡ : ∀ {s : String} {E F G : RegExp}
+  → s ∈(E · (F + G)) ≃ s ∈(E · F + E · G)
+seq-distrib-+ˡ {s} {E} {F} {G} =
+  record
+    { to      = to
+    ; from    = from
+    ; from∘to = from∘to
+    ; to∘from = to∘from }
+  where
+    to : s ∈ (E · (F + G)) → s ∈ (E · F + E · G)
+    to (in-· x (in+l y)) = in+l (in-· x y)
+    to (in-· x (in+r y)) = in+r (in-· x y)
+
+    from : s ∈ (E · F + E · G) → s ∈ (E · (F + G))
+    from (in+l (in-· x y)) = in-· x (in+l y)
+    from (in+r (in-· x y)) = in-· x (in+r y)
+
+    from∘to : (x : s ∈ (E · (F + G))) → from (to x) ≡ x
+    from∘to (in-· x (in+l y)) = refl
+    from∘to (in-· x (in+r y)) = refl
+
+    to∘from : (y : s ∈ (E · F + E · G)) → to (from y) ≡ y
+    to∘from (in+l (in-· y y₁)) = refl
+    to∘from (in+r (in-· y y₁)) = refl
+
+
+seq-distrib-+ʳ : ∀ {s : String} {E F G : RegExp}
+  → s ∈((E + F) · G) ≃ s ∈(E · G + F · G)
+seq-distrib-+ʳ {s} {E} {F} {G} =
+  record
+    { to      = to
+    ; from    = from
+    ; from∘to = from∘to
+    ; to∘from = to∘from }
+  where
+    to : s ∈ ((E + F) · G) → s ∈ (E · G + F · G)
+    to (in-· (in+l x) y) = in+l (in-· x y)
+    to (in-· (in+r x) y) = in+r (in-· x y)
+
+    from : s ∈ (E · G + F · G) → s ∈ ((E + F) · G)
+    from (in+l (in-· x x₁)) = in-· (in+l x) x₁
+    from (in+r (in-· x x₁)) = in-· (in+r x) x₁
+
+    from∘to : (x : s ∈ ((E + F) · G)) → from (to x) ≡ x
+    from∘to (in-· (in+l x) y) = refl
+    from∘to (in-· (in+r x) y) = refl
+
+    to∘from : (y : s ∈ (E · G + F · G)) → to (from y) ≡ y
+    to∘from (in+l (in-· y y₁)) = refl
+    to∘from (in+r (in-· y y₁)) = refl
+
+
+
+seq-idˡ : ∀ {s : String} {E : RegExp}
+  → s ∈(⟨ε⟩ · E) ≃ s ∈(E)
+seq-idˡ {s} {E} =
+  record
+    { to      = λ { (in-· in-ε x) → x }
+    ; from    = λ { x → in-· in-ε x }
+    ; from∘to = λ { (in-· in-ε x₁) → refl }
+    ; to∘from = λ { y → refl }
+    }
+
+
+
+seq-idʳ : ∀ {s : String} {E : RegExp}
+  → s ∈(E · ⟨ε⟩) ⇔ s ∈(E)
+seq-idʳ {s} {E} =
+  record
+    { to      = to
+    ; from    = from
+    }
+  where
+    to : s ∈ (E · ⟨ε⟩) → s ∈ E
+    to (in-· {u} x in-ε) rewrite  ++-idʳ u = x
+
+    from : ∀ {E} {v} → v ∈(E) → v ∈(E · ⟨ε⟩)
+    from {E} {v} x = subst (_∈(E · ⟨ε⟩)) (++-idʳ v) (in-· x in-ε)
+
+
+ε-guaranteed-* : ∀ {s : String} {E : RegExp}
+  → s ∈(E *) ⇔ s ∈( (E + ⟨ε⟩) * )
+ε-guaranteed-* {s} {E} =
+  record
+    { to = to
+    ; from = from
+    }
+  where
+    to : ∀ {E}{v} → v ∈ (E *) → v ∈ ((E + ⟨ε⟩) *)
+    to in-*1 = in-*1
+    to (in-*2 {s} {[]} x y) = in-*2 (in+l x) (to y)
+    to (in-*2 {s} {t ∷ ts} x y) = in-*2 (in+l x) (to y)
+
+    from : ∀ {F}{v} → v ∈ ((F + ⟨ε⟩) *) → v ∈ (F *)
+    from in-*1 = in-*1
+    from (in-*2 {v} (in+l x) y) = in-*2 x (from y)
+    from (in-*2 {[]} (in+r x) y) = from y
+
++-idempotent : ∀ {s : String} {E : RegExp}
+  → s ∈(E + E) ⇔ s ∈(E)
++-idempotent {s}{E} =
+  record
+    { to = λ{ (in+l x) → x ; (in+r x) → x }
+    ; from = in+l
+    }
+
+lemma1 : ∀ {s}{t}{E}
+  → s ∈(E *)
+  → t ∈(E *)
+    ---------
+  → (s ++ t) ∈(E *)
+lemma1 {_} {t} in-*1 y = y
+lemma1 {_} {t} {E} (in-*2 {u} {v} x y) z =
+  subst (_∈(E *)) (sym (++-assoc u v t)) (in-*2 x (lemma1 y z))
+
+
+*-idempotent : ∀ {s : String} {E : RegExp}
+  → s ∈(E *) ⇔ s ∈( E * * )
+*-idempotent {s} {E} =
+  record
+    { to = to
+    ; from = from }
+  where
+    to : ∀ {E} {v} → v ∈(E *) → v ∈( E * * )
+    to {E} {v} in-*1 = in-*1
+    to {E} {v} (in-*2 {t} {u} x y) =
+        subst (_∈(E * *)) (++-idʳ v) (in-*2 (in-*2 x y) in-*1)
+
+    from : ∀ {E} {v} → v ∈( E * * ) → v ∈(E *)
+    from in-*1 = in-*1
+    from {E} (in-*2 {ts} {_} x y) with from y
+    ... | a = lemma1 x a
+
+zero* : ∀ {s}
+  → s ∈(⟨⟩ *) ⇔ s ∈(⟨ε⟩)
+zero* =
+  record
+    { to = λ{ in-*1 → in-ε }
+    ; from = λ{ in-ε → in-*1 }
+    }
+
+one* : ∀ {s} → s ∈(⟨ε⟩ *) ⇔ s ∈(⟨ε⟩)
+one* {s} =
+  record
+    { to = to
+    ; from = λ{ in-ε → in-*1 }
+    }
+  where
+    to : s ∈(⟨ε⟩ *) → s ∈(⟨ε⟩)
+    to in-*1 = in-ε
+    to (in-*2 in-ε x) = to x
+
+
+
+lemma2 : ∀ {s}{E}
+  → s ∈(E)
+    -------
+  → s ∈(E *)
+lemma2 {s} {E} x = subst (_∈(E *)) ((++-idʳ s)) (in-*2 x in-*1)
+
+-- Extensions
+
+-- One or more instances
+infixl 8 _⁺
+_⁺ : RegExp → RegExp
+E ⁺ = E · E *
+
+⁺law : ∀ {s}{E}
+  → s ∈(E *) ⇔ s ∈(E ⁺ + ⟨ε⟩)
+⁺law =
+  record
+    { to = to
+    ; from = from }
+  where
+    to : ∀ {s}{E} → s ∈ (E *) → s ∈ ((E ⁺) + ⟨ε⟩)
+    to in-*1 = in+r in-ε
+    to (in-*2 x x₁) = in+l (in-· x x₁)
+
+    from : ∀ {s}{E} → s ∈ ((E ⁺) + ⟨ε⟩) → s ∈ (E *)
+    from (in+l (in-· x x₁)) = in-*2 x x₁
+    from (in+r in-ε) = in-*1
+
+-- Zero or one instance
+infixl 8 _⁇
+_⁇ : RegExp → RegExp
+R ⁇ = R + ⟨ε⟩
 --
--- seq-assoc : ∀ {s : String} {E F G : RegExp}
---   → s ∈ℒ(E , (F , G)) ⇔ s ∈ℒ((E , F) , G)
--- seq-assoc {s} {E} {F} {G} =
---   record
---     { to = to
---     ; from = from
---     }
---   where
---     to : ∀ {s} {E} {F} {G} →  s ∈ℒ (E , (F , G)) → s ∈ℒ ((E , F) , G)
---     to {_} {E} {F} {G} (∈ℒ-, {t} x (∈ℒ-, {u} {v} y z)) =
---       subst (_∈ℒ((E , F) , G)) (++-assoc t u v) ((∈ℒ-, (∈ℒ-, x y) z))
---
---     from : ∀ {s} {E} {F} {G} →  s ∈ℒ ((E , F) , G) → s ∈ℒ (E , (F , G))
---     from {_} {E} {F} {G} (∈ℒ-, {_} {v} (∈ℒ-, {t} {u} x y) z) =
---       subst (_∈ℒ(E , (F , G))) (sym (++-assoc t u v)) (∈ℒ-, x (∈ℒ-, y z))
---
---
---
--- seq-distrib-+ˡ : ∀ {s : String} {E F G : RegExp}
---   → s ∈ℒ(E , (F + G)) ≃ s ∈ℒ(E , F + E , G)
--- seq-distrib-+ˡ {s} {E} {F} {G} =
---   record
---     { to      = to
---     ; from    = from
---     ; from∘to = from∘to
---     ; to∘from = to∘from }
---   where
---     to : s ∈ℒ (E , (F + G)) → s ∈ℒ (E , F + E , G)
---     to (∈ℒ-, x (∈ℒ+l y)) = ∈ℒ+l (∈ℒ-, x y)
---     to (∈ℒ-, x (∈ℒ+r y)) = ∈ℒ+r (∈ℒ-, x y)
---
---     from : s ∈ℒ (E , F + E , G) → s ∈ℒ (E , (F + G))
---     from (∈ℒ+l (∈ℒ-, x y)) = ∈ℒ-, x (∈ℒ+l y)
---     from (∈ℒ+r (∈ℒ-, x y)) = ∈ℒ-, x (∈ℒ+r y)
---
---     from∘to : (x : s ∈ℒ (E , (F + G))) → from (to x) ≡ x
---     from∘to (∈ℒ-, x (∈ℒ+l y)) = refl
---     from∘to (∈ℒ-, x (∈ℒ+r y)) = refl
---
---     to∘from : (y : s ∈ℒ (E , F + E , G)) → to (from y) ≡ y
---     to∘from (∈ℒ+l (∈ℒ-, y y₁)) = refl
---     to∘from (∈ℒ+r (∈ℒ-, y y₁)) = refl
---
---
--- seq-distrib-+ʳ : ∀ {s : String} {E F G : RegExp}
---   → s ∈ℒ((E + F) , G) ≃ s ∈ℒ(E , G + F , G)
--- seq-distrib-+ʳ {s} {E} {F} {G} =
---   record
---     { to      = to
---     ; from    = from
---     ; from∘to = from∘to
---     ; to∘from = to∘from }
---   where
---     to : s ∈ℒ ((E + F) , G) → s ∈ℒ (E , G + F , G)
---     to (∈ℒ-, (∈ℒ+l x) y) = ∈ℒ+l (∈ℒ-, x y)
---     to (∈ℒ-, (∈ℒ+r x) y) = ∈ℒ+r (∈ℒ-, x y)
---
---     from : s ∈ℒ (E , G + F , G) → s ∈ℒ ((E + F) , G)
---     from (∈ℒ+l (∈ℒ-, x x₁)) = ∈ℒ-, (∈ℒ+l x) x₁
---     from (∈ℒ+r (∈ℒ-, x x₁)) = ∈ℒ-, (∈ℒ+r x) x₁
---
---     from∘to : (x : s ∈ℒ ((E + F) , G)) → from (to x) ≡ x
---     from∘to (∈ℒ-, (∈ℒ+l x) y) = refl
---     from∘to (∈ℒ-, (∈ℒ+r x) y) = refl
---
---     to∘from : (y : s ∈ℒ (E , G + F , G)) → to (from y) ≡ y
---     to∘from (∈ℒ+l (∈ℒ-, y y₁)) = refl
---     to∘from (∈ℒ+r (∈ℒ-, y y₁)) = refl
---
---
---
--- seq-idˡ : ∀ {s : String} {E : RegExp}
---   → s ∈ℒ(⟨ε⟩ , E) ≃ s ∈ℒ(E)
--- seq-idˡ {s} {E} =
---   record
---     { to      = λ { (∈ℒ-, ∈ℒ[] x) → x }
---     ; from    = λ { x → ∈ℒ-, ∈ℒ[] x }
---     ; from∘to = λ { (∈ℒ-, ∈ℒ[] x₁) → refl }
---     ; to∘from = λ { y → refl }
---     }
---
---
---
--- seq-idʳ : ∀ {s : String} {E : RegExp}
---   → s ∈ℒ(E , ⟨ε⟩) ⇔ s ∈ℒ(E)
--- seq-idʳ {s} {E} =
---   record
---     { to      = to
---     ; from    = from
---     }
---   where
---     to : s ∈ℒ (E , ⟨ε⟩) → s ∈ℒ E
---     to (∈ℒ-, {u} x ∈ℒ[]) rewrite  ++-idʳ u = x
---
---     from : ∀ {E} {v} → v ∈ℒ(E) → v ∈ℒ(E , ⟨ε⟩)
---     from {E} {v} x = subst (_∈ℒ(E , ⟨ε⟩)) (++-idʳ v) (∈ℒ-, x ∈ℒ[])
---
---
--- ε-guaranteed-* : ∀ {s : String} {E : RegExp}
---   → s ∈ℒ(E *) ⇔ s ∈ℒ( (E + ⟨ε⟩) * )
--- ε-guaranteed-* {s} {E} =
---   record
---     { to = to
---     ; from = from
---     }
---   where
---     to : ∀ {E}{v} → v ∈ℒ (E *) → v ∈ℒ ((E + ⟨ε⟩) *)
---     to ∈ℒ*-0 = ∈ℒ*-0
---     to (∈ℒ*-+ {s} {[]} x y) = ∈ℒ*-+ (∈ℒ+l x) (to y)
---     to (∈ℒ*-+ {s} {t ∷ ts} x y) = ∈ℒ*-+ (∈ℒ+l x) (to y)
---
---     from : ∀ {F}{v} → v ∈ℒ ((F + ⟨ε⟩) *) → v ∈ℒ (F *)
---     from ∈ℒ*-0 = ∈ℒ*-0
---     from (∈ℒ*-+ {v} (∈ℒ+l x) y) = ∈ℒ*-+ x (from y)
---     from (∈ℒ*-+ {[]} (∈ℒ+r x) y) = from y
---
--- +-idempotent : ∀ {s : String} {E : RegExp}
---   → s ∈ℒ(E + E) ⇔ s ∈ℒ(E)
--- +-idempotent {s}{E} =
---   record
---     { to = λ{ (∈ℒ+l x) → x ; (∈ℒ+r x) → x }
---     ; from = ∈ℒ+l
---     }
---
--- lemma1 : ∀ {s}{t}{E}
---   → s ∈ℒ(E *)
---   → t ∈ℒ(E *)
---     ---------
---   → (s ++ t) ∈ℒ(E *)
--- lemma1 {_} {t} ∈ℒ*-0 y = y
--- lemma1 {_} {t} {E} (∈ℒ*-+ {u} {v} x y) z =
---   subst (_∈ℒ(E *)) (sym (++-assoc u v t)) (∈ℒ*-+ x (lemma1 y z))
---
---
--- *-idempotent : ∀ {s : String} {E : RegExp}
---   → s ∈ℒ(E *) ⇔ s ∈ℒ( E * * )
--- *-idempotent {s} {E} =
---   record
---     { to = to
---     ; from = from }
---   where
---     to : ∀ {E} {v} → v ∈ℒ(E *) → v ∈ℒ( E * * )
---     to {E} {v} ∈ℒ*-0 = ∈ℒ*-0
---     to {E} {v} (∈ℒ*-+ {t} {u} x y) =
---         subst (_∈ℒ(E * *)) (++-idʳ v) (∈ℒ*-+ (∈ℒ*-+ x y) ∈ℒ*-0)
---
---     from : ∀ {E} {v} → v ∈ℒ( E * * ) → v ∈ℒ(E *)
---     from ∈ℒ*-0 = ∈ℒ*-0
---     from {E} (∈ℒ*-+ {ts} {_} x y) with from y
---     ... | a = lemma1 x a
---
--- zero* : ∀ {s}
---   → s ∈ℒ(⟨⟩ *) ⇔ s ∈ℒ(⟨ε⟩)
--- zero* =
---   record
---     { to = λ{ ∈ℒ*-0 → ∈ℒ[] }
---     ; from = λ{ ∈ℒ[] → ∈ℒ*-0 }
---     }
---
--- one* : ∀ {s} → s ∈ℒ(⟨ε⟩ *) ⇔ s ∈ℒ(⟨ε⟩)
--- one* {s} =
---   record
---     { to = to
---     ; from = λ{ ∈ℒ[] → ∈ℒ*-0 }
---     }
---   where
---     to : s ∈ℒ(⟨ε⟩ *) → s ∈ℒ(⟨ε⟩)
---     to ∈ℒ*-0 = ∈ℒ[]
---     to (∈ℒ*-+ ∈ℒ[] x) = to x
---
---
---
--- lemma2 : ∀ {s}{E}
---   → s ∈ℒ(E)
---     -------
---   → s ∈ℒ(E *)
--- lemma2 {s} {E} x = subst (_∈ℒ(E *)) ((++-idʳ s)) (∈ℒ*-+ x ∈ℒ*-0)
---
--- -- Extensions
---
--- -- One or more instances
--- infixl 8 _⁺
--- _⁺ : RegExp → RegExp
--- E ⁺ = E , E *
---
--- ⁺law : ∀ {s}{E}
---   → s ∈ℒ(E *) ⇔ s ∈ℒ(E ⁺ + ⟨ε⟩)
--- ⁺law =
---   record
---     { to = to
---     ; from = from }
---   where
---     to : ∀ {s}{E} → s ∈ℒ (E *) → s ∈ℒ ((E ⁺) + ⟨ε⟩)
---     to ∈ℒ*-0 = ∈ℒ+r ∈ℒ[]
---     to (∈ℒ*-+ x x₁) = ∈ℒ+l (∈ℒ-, x x₁)
---
---     from : ∀ {s}{E} → s ∈ℒ ((E ⁺) + ⟨ε⟩) → s ∈ℒ (E *)
---     from (∈ℒ+l (∈ℒ-, x x₁)) = ∈ℒ*-+ x x₁
---     from (∈ℒ+r ∈ℒ[]) = ∈ℒ*-0
---
--- -- Zero or one instance
--- infixl 8 _⁇
--- _⁇ : RegExp → RegExp
--- R ⁇ = R + ⟨ε⟩
---
---
---
---
---
---
---
---
---
---
---
---
--- --
