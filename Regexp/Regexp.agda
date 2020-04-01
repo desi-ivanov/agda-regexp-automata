@@ -316,25 +316,37 @@ lemma1 {_} {t} {E} (in-*2 {u} {v} x y) z =
     ... | a = lemma1 x a
 
 zero* : ∀ {s}
-  → s ∈(⟨⟩ *) ⇔ s ∈(⟨ε⟩)
+  → s ∈(⟨⟩ *) ≃ s ∈(⟨ε⟩)
 zero* =
   record
-    { to = λ{ in-*1 → in-ε }
-    ; from = λ{ in-ε → in-*1 }
+    { to = to
+    ; from = from
+    ; from∘to = from∘to
+    ; to∘from = to∘from
     }
+  where
+    to : ∀{s} → s ∈ (⟨⟩ *) → s ∈ ⟨ε⟩
+    to in-*1 = in-ε
+    from : ∀{s} → s ∈ ⟨ε⟩ → s ∈ (⟨⟩ *)
+    from in-ε = in-*1
+    from∘to : ∀{s} → (x : s ∈ (⟨⟩ *)) → from (to x) ≡ x
+    from∘to in-*1 = refl
+    to∘from : ∀{s} → (y : s ∈ ⟨ε⟩) → to (from y) ≡ y
+    to∘from in-ε = refl
 
 one* : ∀ {s} → s ∈(⟨ε⟩ *) ⇔ s ∈(⟨ε⟩)
 one* {s} =
   record
     { to = to
-    ; from = λ{ in-ε → in-*1 }
+    ; from = from
     }
   where
     to : s ∈(⟨ε⟩ *) → s ∈(⟨ε⟩)
     to in-*1 = in-ε
     to (in-*2 in-ε x) = to x
 
-
+    from : s ∈ ⟨ε⟩ → s ∈ (⟨ε⟩ *)
+    from in-ε = in-*1
 
 lemma2 : ∀ {s}{E}
   → s ∈(E)
@@ -350,13 +362,16 @@ _⁺ : RegExp → RegExp
 E ⁺ = E · E *
 
 ⁺law : ∀ {s}{E}
-  → s ∈(E *) ⇔ s ∈(E ⁺ + ⟨ε⟩)
+  → s ∈(E *) ≃ s ∈(E ⁺ + ⟨ε⟩)
 ⁺law =
   record
     { to = to
-    ; from = from }
+    ; from = from
+    ; from∘to = from∘to
+    ; to∘from = to∘from
+    }
   where
-    to : ∀ {s}{E} → s ∈ (E *) → s ∈ ((E ⁺) + ⟨ε⟩)
+    to : ∀ {s E} → s ∈ (E *) → s ∈ ((E ⁺) + ⟨ε⟩)
     to in-*1 = in+r in-ε
     to (in-*2 x x₁) = in+l (in-· x x₁)
 
@@ -364,8 +379,15 @@ E ⁺ = E · E *
     from (in+l (in-· x x₁)) = in-*2 x x₁
     from (in+r in-ε) = in-*1
 
+    from∘to : ∀{s E} → (x : s ∈ (E *)) → from (to x) ≡ x
+    from∘to in-*1 = refl
+    from∘to (in-*2 x x₁) = refl
+
+    to∘from : ∀{s E} → (y : s ∈ (E ⁺ + ⟨ε⟩)) → to (from y) ≡ y
+    to∘from (in+l (in-· x x₁)) = refl
+    to∘from (in+r in-ε) = refl
+
 -- Zero or one instance
 infixl 8 _⁇
 _⁇ : RegExp → RegExp
 R ⁇ = R + ⟨ε⟩
---
