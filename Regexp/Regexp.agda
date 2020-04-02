@@ -7,6 +7,7 @@ open import Relation.Nullary using (¬_)
 open import Data.Char as Char
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import String using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ)
+open import Equivalence
 
 ε = []
 
@@ -49,20 +50,6 @@ data _∈_ : String → RegExp → Set where
      → s ∈ E
      → t ∈ (E *)
      → (s ++ t) ∈ (E *)
-
-infix 0 _≃_
-record _≃_ (A B : Set) : Set where
-  field
-    to   : A → B
-    from : B → A
-    from∘to : ∀ (x : A) → from (to x) ≡ x
-    to∘from : ∀ (y : B) → to (from y) ≡ y
-
-infix 0 _⇔_
-record _⇔_ (A B : Set) : Set where
-  field
-    to   : A → B
-    from : B → A
 
 +-idˡ : ∀ {s : String} {E : RegExp}
   → s ∈(E) ≃ s ∈(⟨⟩ + E)
