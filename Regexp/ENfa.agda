@@ -1,16 +1,15 @@
 module ENfa where
-open import Data.Char as Char using (Char)
+open import Data.Char using (Char)
 open import Data.Nat using (ℕ; zero; suc)
-open import Data.Nat.Properties using (≤-refl)
 open import Data.Fin
-  using (Fin; fromℕ≤)
+  using (Fin)
   renaming (zero to fzero; suc to fsuc)
 open import Data.Fin.Subset as Subset
-  using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; ⋃; Nonempty)
+  using (Subset; ⁅_⁆; _∪_; _∩_; ⋃; Nonempty)
   renaming (⊥ to EmptySubset)
 open import Data.Bool using (false; true)
-open import String using (String) renaming (_∷_ to _∷ˢ_; [] to []ˢ)
-open import Data.Vec renaming (_∷_ to _∷v_; [] to []v)
+open import String using (String; _∷_; [])
+open import Data.Vec using (toList)
 open import VecUtil
 
 record eNfa (n : ℕ) : Set where
@@ -36,8 +35,8 @@ eclose : ∀{n} → eNfa n → Subset n → Subset n
 eclose {n} enfa qs = ecloseQS enfa qs EmptySubset
 
 δ̂ : ∀{n} → eNfa n → (Subset n) → String → (Subset n)
-δ̂ {n} enfa qs []ˢ = eclose enfa qs
-δ̂ {n} enfa qs (x ∷ˢ s) = δ̂ enfa (eclose enfa (onestep (eclose enfa qs) x)) s
+δ̂ {n} enfa qs [] = eclose enfa qs
+δ̂ {n} enfa qs (c ∷ s) = δ̂ enfa (eclose enfa (onestep (eclose enfa qs) c)) s
   where
     computeifpresent : Fin n → Char → Subset n
     computeifpresent q c with qs ! q
