@@ -89,14 +89,6 @@ subsetToNat ss = sum (mapS ss (λ i →  2 ^ toℕ i) 0)
 postulate
   subsetToNat< : ∀{n} → (ss : Subset n) → subsetToNat ss < 2 ^ n
 
-1≤2^n : (n : ℕ) → 1 ≤ 2 ^ n
-1≤2^n zero = s≤s z≤n
-1≤2^n (suc n) rewrite +-identityʳ (2 ^ n) = ≤-stepsʳ (2 ^ n) (1≤2^n n)
-
-n≤2^n : (n : ℕ) → n ≤ (2 ^ n)
-n≤2^n Data.Fin.0F = z≤n
-n≤2^n (suc n) rewrite +-identityʳ (2 ^ n) = subst (_≤(2 ^ n) + (2 ^ n)) (+-comm n 1) (+-mono-≤ (n≤2^n n) (1≤2^n n))
-
 1+n<m⟶n<m : ∀{n m} → suc n < m → n < m
 1+n<m⟶n<m {zero} (s≤s x) = s≤s z≤n
 1+n<m⟶n<m {suc n} (s≤s x) = s≤s (1+n<m⟶n<m x)
@@ -126,7 +118,7 @@ toPowersetFin ss = fromℕ≤ (subsetToNat< ss)
 NfaToDfa : ∀{n} → Nfa n → Dfa (2 ^ n)
 NfaToDfa {n} nfa =
   record
-    { S = inject≤ (Nfa.S nfa) (n≤2^n n)
+    { S = toPowersetFin ⁅ Nfa.S nfa ⁆
     ; δ = λ q c → toPowersetFin (Uδ (toSubset q) c)
     ; isF = λ p → any {n} λ q → (toSubset p ! q) ∧ (Nfa.F nfa ! q)
     }
