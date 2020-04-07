@@ -13,8 +13,8 @@ open import Data.Fin
   using (Fin; toℕ; fromℕ≤; fromℕ; inject≤)
   renaming (suc to fsuc; zero to fzero)
 open import Data.Fin.Properties using (toℕ<n)
-open import Data.Fin.Subset as Subset
-  using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; ⋃; Nonempty)
+open import Data.Fin.Subset
+  using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; Nonempty)
   renaming (⊥ to ∅; ⊤ to FullSet)
 open import Data.Vec
   using (zipWith; _[_]=_; here; there; toList; replicate; sum; _[_]%=_; reverse)
@@ -83,12 +83,8 @@ dfa⊆nfa {s}{n}{dfa} = record { to = to {s}{n}{dfa} ; from = from {s}{n}{dfa} }
 
 -- Nfa ⊆ Dfa
 
-bitV : Bool → ℕ
-bitV false = 0
-bitV true = 1
-
 subsetToNat : ∀{n} → Subset n → ℕ
-subsetToNat ss = sum (build λ i → bitV (ss ! i) * 2 ^ (toℕ i))
+subsetToNat ss = sum (mapS ss (λ i →  2 ^ toℕ i) 0)
 
 postulate
   subsetToNat< : ∀{n} → (ss : Subset n) → subsetToNat ss < 2 ^ n
@@ -131,9 +127,9 @@ NfaToDfa : ∀{n} → Nfa n → Dfa (2 ^ n)
 NfaToDfa {n} nfa =
   record
     { S = inject≤ (Nfa.S nfa) (n≤2^n n)
-    ; δ = λ q c → toPowersetFin (⋃δ (toSubset q) c)
+    ; δ = λ q c → toPowersetFin (Uδ (toSubset q) c)
     ; isF = λ p → any {n} λ q → (toSubset p ! q) ∧ (Nfa.F nfa ! q)
     }
   where
-    ⋃δ : Subset n → Char → Subset n
-    ⋃δ Qset c = ⋃ (toList (build λ q → ifPresentOrElse q Qset (λ _ → Nfa.δ nfa q c) ∅))
+    Uδ : Subset n → Char → Subset n
+    Uδ Qset c = U (mapS Qset (λ q → Nfa.δ nfa q c) ∅)
