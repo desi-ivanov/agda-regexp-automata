@@ -7,6 +7,7 @@ open import Data.Fin
 open import Data.Fin.Subset as Subset
   using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; Nonempty)
   renaming (⊥ to ∅)
+open import Data.Fin.Properties using (_≟_)
 open import Data.Bool using (Bool; false; true; _∨_; _∧_; T)
 open import Data.Product using (_×_; Σ; ∃; Σ-syntax; ∃-syntax; _,_)
 open import Data.Unit using (⊤; tt)
@@ -73,10 +74,20 @@ concatNfa {n} {m} nfaL nfaR =
     δ q c | yes q<n | no ¬fin = (Nfa.δ nfaL (fromℕ≤ q<n) c) ++             ∅
     δ q c | no ¬q<n           =               ∅             ++ (Nfa.δ nfaR (reduce≥ q (lem≤ ¬q<n)) c)
 
-
-
-
-
+unionNfa : ∀{n m} → Nfa n → Nfa m → Nfa (n + m)
+unionNfa {n} {m} nfaL nfaR =
+  record
+    { S = inject+ m (Nfa.S nfaL)
+    ; δ = δ
+    ; F = (Nfa.F nfaL) ++ (Nfa.F nfaR)
+    }
+  where
+    δ : Fin (n + m) → Char → Subset (n + m)
+    δ q c with toℕ q <? n
+    δ q c | yes q<n with fromℕ≤ (q<n) ≟ Nfa.S nfaL
+    δ q c | yes q<n | yes isS = (Nfa.δ nfaL (fromℕ≤ q<n) c) ++ (Nfa.δ nfaR (Nfa.S nfaR) c)
+    δ q c | yes q<n | no ¬isS = (Nfa.δ nfaL (fromℕ≤ q<n) c) ++             ∅
+    δ q c | no ¬q<n           =               ∅             ++ (Nfa.δ nfaR (reduce≥ q (lem≤ ¬q<n)) c)
 
 
 
