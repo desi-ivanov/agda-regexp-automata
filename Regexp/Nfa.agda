@@ -1,8 +1,8 @@
 module Nfa where
 open import Data.Char as Char using (Char)
-open import Data.Nat using (ℕ; zero; suc)
+open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; _≥_; _<?_; _≤?_; s≤s; z≤n)
 open import Data.Fin
-  using (Fin)
+  using (Fin; inject+; toℕ; raise; fromℕ≤; _ℕ-_; reduce≥)
   renaming (zero to fzero; suc to fsuc)
 open import Data.Fin.Subset as Subset
   using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; Nonempty)
@@ -10,13 +10,12 @@ open import Data.Fin.Subset as Subset
 open import Data.Bool using (Bool; false; true; _∨_; _∧_; T)
 open import Data.Product using (_×_; Σ; ∃; Σ-syntax; ∃-syntax; _,_)
 open import Data.Unit using (⊤; tt)
+open import Data.Empty using (⊥-elim)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
-open import String using (String; _∷_; [])
-open import Data.Vec renaming (_∷_ to _∷v_; [] to []v)
+open import String using (String; _∷_; []) renaming (_++_ to _++ˢ_)
+open import Data.Vec renaming (_∷_ to _∷v_; [] to []v) hiding (concat)
 open import VecUtil
-import Relation.Binary.PropositionalEquality as Eq
-open Eq using (_≡_; refl)
-open Eq.≡-Reasoning
+open import Equivalence
 
 record Nfa (n : ℕ) : Set where
   field
@@ -53,3 +52,47 @@ _↓?_ : ∀{n} → (nfa : Nfa n) → (s : String) → Dec (nfa ↓ s)
 nfa ↓? s with accepts nfa (Nfa.S nfa) s
 ... | false = no (λ z → z)
 ... | true = yes tt
+
+lem≤ : ∀{m n} → ¬ 1 + m ≤ n → m ≥ n
+lem≤ {_} {zero} ¬p = z≤n
+lem≤ {zero} {suc n} ¬p = ⊥-elim (¬p (s≤s z≤n))
+lem≤ {suc m} {suc n} ¬p = s≤s (lem≤ (λ z → ¬p (s≤s z)))
+
+concatNfa : ∀{n m} → Nfa n → Nfa m → Nfa (n + m)
+concatNfa {n} {m} nfaL nfaR =
+  record
+    { S = inject+ m (Nfa.S nfaL)
+    ; δ = δ
+    ; F = ∅ ++ (Nfa.F nfaR)
+    }
+  where
+    δ : Fin (n + m) → Char → Subset (n + m)
+    δ q c with toℕ q <? n
+    δ q c | yes q<n with fromℕ≤ (q<n) ∈? Nfa.F nfaL
+    δ q c | yes q<n | yes fin = (Nfa.δ nfaL (fromℕ≤ q<n) c) ++ (Nfa.δ nfaR (Nfa.S nfaR) c)
+    δ q c | yes q<n | no ¬fin = (Nfa.δ nfaL (fromℕ≤ q<n) c) ++             ∅
+    δ q c | no ¬q<n           =               ∅             ++ (Nfa.δ nfaR (reduce≥ q (lem≤ ¬q<n)) c)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--
