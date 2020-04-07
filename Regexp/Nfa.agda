@@ -5,8 +5,8 @@ open import Data.Fin
   using (Fin)
   renaming (zero to fzero; suc to fsuc)
 open import Data.Fin.Subset as Subset
-  using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; ⋃; Nonempty)
-  renaming (⊥ to EmptySubset)
+  using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; Nonempty)
+  renaming (⊥ to ∅)
 open import Data.Bool using (Bool; false; true; _∨_; _∧_; T)
 open import Data.Product using (_×_; Σ; ∃; Σ-syntax; ∃-syntax; _,_)
 open import Data.Unit using (⊤; tt)
@@ -28,13 +28,8 @@ record Nfa (n : ℕ) : Set where
 δ̂ {n} nfa qs [] = qs
 δ̂ {n} nfa qs (x ∷ s) = δ̂ nfa (onestep qs x) s
   where
-    computeifpresent : Fin n → Char → Subset n
-    computeifpresent q c with qs ! q
-    ... | false = EmptySubset
-    ... | true = Nfa.δ nfa q c
-
     onestep : (Subset n) → Char → (Subset n)
-    onestep qs c = ⋃ (toList (build (λ q → computeifpresent q c)))
+    onestep qs c = U (mapS qs (λ q → Nfa.δ nfa q c) ∅)
 
 infix 10 _↓′_
 _↓′_ : ∀{n} → Nfa n → String → Set
@@ -58,7 +53,3 @@ _↓?_ : ∀{n} → (nfa : Nfa n) → (s : String) → Dec (nfa ↓ s)
 nfa ↓? s with accepts nfa (Nfa.S nfa) s
 ... | false = no (λ z → z)
 ... | true = yes tt
-
--- lemma-path : ∀{n s} {nfa : Nfa n}
---   → nfa ↓ s
---   → ∃[ v ]()
