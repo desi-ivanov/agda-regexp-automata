@@ -10,12 +10,8 @@ import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; subst; sym; trans; cong)
 open Eq.≡-Reasoning
 
-
-infixl 45 _!_
-_!_ : {n : ℕ}{A : Set} → Vec A n → Fin n → A
-[]     ! ()
-(x ∷ xs) ! fzero  = x
-(x ∷ xs) ! fsuc i = xs ! i
+!-syntax = lookup
+syntax !-syntax v i = v ! i
 
 build : {n : ℕ}{A : Set} → (Fin n → A) → Vec A n
 build {zero } f = []
