@@ -5,8 +5,9 @@ open import Data.Fin
   using (Fin; inject+; 0F; raise)
   renaming (zero to fzero; suc to fsuc)
 open import Data.Fin.Subset as Subset
-  using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; Nonempty)
+  using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; _⊆_; Nonempty)
   renaming (⊥ to ∅; ⊤ to FullSet)
+open import Data.Fin.Subset.Properties using (x∈p∪q⁺)
 open import Data.Fin.Properties using (_≟_)
 open import Data.Bool using (Bool; false; true; _∨_; _∧_; T)
 open import Data.Bool.Properties using (T?)
@@ -113,27 +114,20 @@ unionNfa {n} {m} nfaL nfaR =
     sf | no ¬ε∈l | no ¬ε∈r = false ∷v []v
     sf | _     | _         = true ∷v []v
 
-starNfa : ∀{n} → Nfa n → Nfa (suc n)
-starNfa nfa with any? T? (Nfa.F nfa)
-starNfa {n} nfa | yes p =
+starNfa : ∀{n} → Nfa n → Nfa (1 + n)
+starNfa {n} nfa =
   record
     { S = fzero
     ; δ = δ
     ; F = ⁅ fzero ⁆ ++ Nfa.F nfa
     }
   where
-    δ : Fin (suc n) → Char → Subset (suc n)
+    δ : Fin (1 + n) → Char → Subset (1 + n)
     δ q c with splitAt 1 q
     δ q c | inj₁ z = ∅ ++ (Nfa.δ nfa (Nfa.S nfa) c)
     δ q c | inj₂ p with p ∈? Nfa.F nfa
-    δ q c | inj₂ p | yes isf = ∅ ++ (⁅ Nfa.S nfa ⁆ ∪ (Nfa.δ nfa p) c)
+    δ q c | inj₂ p | yes isf = ∅ ++ ((Nfa.δ nfa (Nfa.S nfa) c) ∪ (Nfa.δ nfa p) c)
     δ q c | inj₂ p | no ¬isf = ∅ ++                  (Nfa.δ nfa p) c
-starNfa {suc n} nfa | no ¬p =
-  record
-    { S = fzero
-    ; δ = λ _ _ → ⁅ fsuc fzero ⁆
-    ; F = ⁅ fzero ⁆
-    }
 
 injectOrR : ∀{u b} → T(b) → T(u ∨ b)
 injectOrR {false} {true} tt = tt
@@ -369,13 +363,54 @@ concat-closure {n} {m} {c ∷ s} {v} {nfaL} {nfaR} (fst , snd) | w , t , f | ur 
 concat-closure {n} {m} {c ∷ s} {v} {nfaL} {nfaR} (fst , snd) | w , t , f | ur | no ¬p | _ | true with lem1ˡ (Nfa.δ nfaL (Nfa.S nfaL) c) (Nfa.δ nfaR (Nfa.S nfaR) c) w t
 ... | pur = fromExists (inject+ m w , joinand pur ur)
 
+injectUnionʳ : ∀{n} {q} {set : Subset n} → T(set ! q) → (inj : Subset n) → T((set ∪ inj) ! q)
+injectUnionʳ {n} {q} {set} t inj with set ! q  | v[i]=v!i set q
+... | true | u =  subst (λ y → T y) (sym (s!i≡s[i] (x∈p∪q⁺ {_}{set}{inj} (inj₁ u)))) tt
+
+injectUnionˡ : ∀{n} {q} {set : Subset n} → T(set ! q) → (inj : Subset n) → T((inj ∪ set) ! q)
+injectUnionˡ {n} {q} {set} t inj with set ! q  | v[i]=v!i set q
+... | true | u =  subst (λ y → T y) (sym (s!i≡s[i] (x∈p∪q⁺ {_}{inj} (inj₂ u)))) tt
+
+star-preserved : ∀{n}{s}{q}{nfa : Nfa n}
+  → T(accepts nfa q s)
+  → T(accepts (starNfa nfa) (raise 1 q) s)
+star-preserved {n} {[]} {q} {nfa} p = p
+star-preserved {n} {c ∷ s} {q} {nfa} p with biglem {n}{c}{s} p
+... | w , t , f with q ∈? Nfa.F nfa
+star-preserved {n} {c ∷ s} {q} {nfa} p | w , t , f | yes p₁ with star-preserved {n}{s}{w}{nfa} f
+... | ind = fromExists (w , joinand (injectUnionˡ t (Nfa.δ nfa (Nfa.S nfa) c)) ind)
+star-preserved {n} {c ∷ s} {q} {nfa} p | w , t , f | no ¬p with  star-preserved {n}{s}{w}{nfa} f
+... | ind = fromExists (w , joinand t ind)
+
+star-inductive : ∀{n}{s v}{q} {nfa : Nfa n}
+  → T(accepts nfa q s) × (starNfa nfa) ↓ v
+  → T(accepts (starNfa nfa) (raise 1 q) (s ++ˢ v))
+star-inductive {n} {[]} {[]} {q} {nfa} (fst , snd) = fst
+star-inductive {n} {[]} {c ∷ v} {q} {nfa} (fst , snd) with q ∈? Nfa.F nfa
+star-inductive {n} {[]} {c ∷ v} {q} {nfa} (fst , snd) | yes p with anyToExists {n} {λ x →
+          lookup (Nfa.δ nfa (Nfa.S nfa) c) x ∧
+          accepts (starNfa nfa) (fsuc x) v } snd
+star-inductive {n} {[]} {c ∷ v} {q} {nfa} (fst , snd) | yes p | w , f with splitand {lookup (Nfa.δ nfa (Nfa.S nfa) c) w} {accepts (starNfa nfa) (fsuc w) v} f
+star-inductive {n} {[]} {c ∷ v} {q} {nfa} (fst , snd) | yes p | w , f | f1 , f2 = fromExists (w , (joinand (injectUnionʳ {n} {w} {Nfa.δ nfa (Nfa.S nfa) c} f1 (Nfa.δ nfa q c)) f2))
+star-inductive {n} {[]} {c ∷ v} {q} {nfa} (fst , snd) | no ¬p = ⊥-elim(¬p (lemmaLookupT fst))
+star-inductive {n} {c ∷ s} {v} {q} {nfa} (fst , snd) with biglem {n}{c}{s} fst
+... | w , t , f with q ∈? Nfa.F nfa
+star-inductive {n} {c ∷ s} {v} {q} {nfa} (fst , snd) | w , t , f | yes p with star-inductive {n}{s}{v}{w}{nfa} (f , snd)
+... | ind = fromExists (w , joinand (injectUnionˡ t (Nfa.δ nfa (Nfa.S nfa) c)) ind)
+star-inductive {n} {c ∷ s} {v} {q} {nfa} (fst , snd) | w , t , f | no ¬p with star-inductive {n}{s}{v}{w}{nfa} (f , snd)
+... | ind = fromExists (w , joinand t ind)
 
 
-
-
-
-
-
+star-closure : ∀{n} {s v : String} {nfa : Nfa n}
+  → nfa ↓ s × (starNfa nfa) ↓ v
+    ---------------------------
+  → (starNfa nfa) ↓ (s ++ˢ v)
+star-closure {n} {[]} {[]} {nfa} (fst , snd) = tt
+star-closure {n} {c ∷ s} {[]} {nfa} (fst , snd) rewrite ++-idʳ (s) with biglem {n} {c} {s} fst
+... | w , t , f = fromExists (w , (joinand t (star-preserved {n}{s}{w} {nfa} f)))
+star-closure {n} {[]} {c ∷ v} {nfa} (fst , snd) rewrite ++-idˡ (c ∷ v) = snd
+star-closure {n} {c ∷ s} {v} {nfa} (fst , snd) with biglem {n} {c} {s} fst
+... | w , t , f = fromExists (w , (joinand t (star-inductive {n}{s}{v}{w}{nfa} (f , snd))))
 
 
 
