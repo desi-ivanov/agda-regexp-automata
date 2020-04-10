@@ -85,9 +85,11 @@ concatNfa {n} {m} nfaL nfaR =
     δ q c | inj₂ mn | inj₂ r           = ∅ {1} ++             ∅               ++ (Nfa.δ nfaR r c)
 
     F : Subset (1 + n + m)
-    F with Nfa.S nfaL ∈? Nfa.F nfaL
-    F | yes p = ⁅ fzero ⁆ ++ (Nfa.F nfaR)
-    F | no ¬p =     ∅     ++ (Nfa.F nfaR)
+    F with Nfa.S nfaL ∈? Nfa.F nfaL | Nfa.S nfaR ∈? Nfa.F nfaR
+    F | yes ε∈l | yes ε∈r = true  ∷v Nfa.F nfaL ++ Nfa.F nfaR
+    F | yes ε∈l | no ¬ε∈r = ∅ {1} ++ ∅          ++ Nfa.F nfaR
+    F | no ¬ε∈l | yes ε∈r = ∅ {1} ++ Nfa.F nfaL ++ Nfa.F nfaR
+    F | no ¬ε∈l | no ¬ε∈r = ∅ {1} ++ ∅          ++ Nfa.F nfaR
 
 unionNfa : ∀{n m} → Nfa n → Nfa m → Nfa (1 + n + m)
 unionNfa {n} {m} nfaL nfaR =
@@ -253,19 +255,19 @@ union-accepts-right {n} {m} {c ∷ s} {q} {nfaL} {nfaR} p
     | splitAt-raise n m q
 union-accepts-right {n} {m} {c ∷ s} {q} {nfaL} {nfaR} p | yes _ | yes _ | inj₂ o | refl with biglem {m}{c}{s} p
 ... | w , v , t with union-accepts-right {n}{m}{s}{w}{nfaL}{nfaR} t
-... | u with lem1ʳ {n} {m} (∅) (Nfa.δ nfaR o c) w (lem3 {m}{w}{Nfa.δ nfaR o c} (lemmaLookupT v))
+... | u with lem1ʳ {n} {m} (∅) (Nfa.δ nfaR o c) w v
 ... | i = fromExists (raise n w , (joinand i u))
 union-accepts-right {n} {m} {c ∷ s} {q} {nfaL} {nfaR} p  | yes _ | no  _ | inj₂ o | refl with biglem {m}{c}{s} p
 ... | w , v , t with union-accepts-right {n}{m}{s}{w}{nfaL}{nfaR} t
-... | u with lem1ʳ {n} {m} (∅) (Nfa.δ nfaR o c) w (lem3 {m}{w}{Nfa.δ nfaR o c} (lemmaLookupT v))
+... | u with lem1ʳ {n} {m} (∅) (Nfa.δ nfaR o c) w v
 ... | i = fromExists (raise n w , (joinand i u))
 union-accepts-right {n} {m} {c ∷ s} {q} {nfaL} {nfaR} p  | no  _ | yes _ | inj₂ o | refl with biglem {m}{c}{s} p
 ... | w , v , t with union-accepts-right {n}{m}{s}{w}{nfaL}{nfaR} t
-... | u with lem1ʳ {n} {m} (∅) (Nfa.δ nfaR o c) w (lem3 {m}{w}{Nfa.δ nfaR o c} (lemmaLookupT v))
+... | u with lem1ʳ {n} {m} (∅) (Nfa.δ nfaR o c) w v
 ... | i = fromExists (raise n w , (joinand i u))
 union-accepts-right {n} {m} {c ∷ s} {q} {nfaL} {nfaR} p  | no  _ | no  _ | inj₂ o | refl with biglem {m}{c}{s} p
 ... | w , v , t with union-accepts-right {n}{m}{s}{w}{nfaL}{nfaR} t
-... | u with lem1ʳ {n} {m} (∅) (Nfa.δ nfaR o c) w (lem3 {m}{w}{Nfa.δ nfaR o c} (lemmaLookupT v))
+... | u with lem1ʳ {n} {m} (∅) (Nfa.δ nfaR o c) w v
 ... | i = fromExists (raise n w , (joinand i u))
 
 union-cl-l : ∀{n m : ℕ} {s : String} {nfaL : Nfa n} {nfaR : Nfa m}
@@ -277,7 +279,7 @@ union-cl-l {n} {m} {[]} {nfaL} {nfaR} p with Nfa.S nfaL ∈? Nfa.F nfaL | Nfa.S 
 ... | no  ¬p | no  _ = ⊥-elim (¬p (lemmaLookupT p))
 union-cl-l {n} {m} {c ∷ s} {nfaL} {nfaR} p with biglem {n} {c} {s} p
 union-cl-l {n} {m} {c ∷ s} {nfaL} {nfaR} p | w , t , f   with union-accepts-left {n}{m}{s}{w}{nfaL}{nfaR} f
-... | ur with subst (λ i → T i) (sym (lookup-++ˡ (Nfa.δ nfaL (Nfa.S nfaL) c) (Nfa.δ nfaR (Nfa.S nfaR) c) w)) t
+... | ur with lem1ˡ (Nfa.δ nfaL (Nfa.S nfaL) c) (Nfa.δ nfaR (Nfa.S nfaR) c) w t
 ... | pur = fromExists ((inject+ m w) , (joinand pur ur))
 
 union-cl-r : ∀{n m : ℕ} {s : String} {nfaL : Nfa n} {nfaR : Nfa m}
@@ -289,7 +291,7 @@ union-cl-r {n} {m} {[]} {nfaL} {nfaR} p with Nfa.S nfaL ∈? Nfa.F nfaL | Nfa.S 
 ... | no  _ | no ¬p = ⊥-elim (¬p (lemmaLookupT p))
 union-cl-r {n} {m} {c ∷ s} {nfaL} {nfaR} p with  biglem {m} {c} {s} p
 ... | w , t , f with union-accepts-right {n}{m}{s}{w}{nfaL}{nfaR} f
-... | ur with subst (λ i → T i) (sym (lookup-++ʳ (Nfa.δ nfaL (Nfa.S nfaL) c) (Nfa.δ nfaR (Nfa.S nfaR) c) w)) t
+... | ur with lem1ʳ (Nfa.δ nfaL (Nfa.S nfaL) c) (Nfa.δ nfaR (Nfa.S nfaR) c) w t
 ... | pur = fromExists ((raise n w) , (joinand pur ur))
 
 union-closure : ∀{n m : ℕ} {s t : String} {nfaL : Nfa n} {nfaR : Nfa m}
@@ -298,6 +300,86 @@ union-closure : ∀{n m : ℕ} {s t : String} {nfaL : Nfa n} {nfaR : Nfa m}
     -------------------------
     ( union ↓ s × union ↓ t )
 union-closure {n}{m}{s}{t}{nfaL}{nfaR} (fst , snd) = union-cl-l {n}{m}{s} fst ,  union-cl-r {n}{m}{t}  snd
+
+
+concat-right-preserved : ∀{n m : ℕ} {v : String} {p}{nfaL : Nfa n} {nfaR : Nfa m}
+  → T(accepts nfaR p v)
+  → T(accepts (concatNfa nfaL nfaR) (raise 1 (raise n p)) v)
+concat-right-preserved {n} {m} {[]} {p} {nfaL} {nfaR} acc  with Nfa.S nfaL ∈? Nfa.F nfaL | Nfa.S nfaR ∈? Nfa.F nfaR
+...| yes _ | yes _ = lem1ʳ (Nfa.F nfaL) (Nfa.F nfaR) p acc
+...| no  _ | yes _ = lem1ʳ (Nfa.F nfaL) (Nfa.F nfaR) p acc
+...| yes _ | no  _ = lem1ʳ (∅ {n}) (Nfa.F nfaR) p acc
+...| no  _ | no  _ = lem1ʳ (∅ {n}) (Nfa.F nfaR) p acc
+concat-right-preserved {n} {m} {c ∷ v} {p} {nfaL} {nfaR} acc with  biglem {m}{c}{v} acc
+... | w , t , f with splitAt n (raise n p) | splitAt-raise n m p
+concat-right-preserved {n} {m} {c ∷ v} {.y} {nfaL} {nfaR} acc | w , t , f | inj₂ y | refl with  concat-right-preserved {_}{_}{v}{w}{nfaL}{nfaR} f
+... | ind  with lem1ʳ (∅ {1 + n}) (Nfa.δ nfaR y c) w t
+... | pur = fromExists (raise n w , joinand pur ind)
+
+concat-inductive-left : ∀{n m : ℕ} {s v : String} {q} {nfaL : Nfa n} {nfaR : Nfa m}
+  → T(accepts nfaL q s) × nfaR ↓ v
+  → T(accepts (concatNfa nfaL nfaR) (raise 1 (inject+ m q)) (s ++ˢ v))
+concat-inductive-left {n} {m} {[]} {[]} {q} {nfaL} {nfaR} (fst , snd) with Nfa.S nfaL ∈? Nfa.F nfaL | Nfa.S nfaR ∈? Nfa.F nfaR
+...| yes ε∈l | yes ε∈r = lem1ˡ (Nfa.F nfaL) (Nfa.F nfaR) q fst
+...| no ¬ε∈l | yes ε∈r = lem1ˡ (Nfa.F nfaL) (Nfa.F nfaR) q fst
+...| yes ε∈l | no ¬ε∈r = ⊥-elim(¬ε∈r (lemmaLookupT snd))
+...| no ¬ε∈l | no ¬ε∈r = ⊥-elim(¬ε∈r (lemmaLookupT snd))
+concat-inductive-left {n} {m} {[]} {c ∷ v} {q} {nfaL} {nfaR} (fst , snd) with splitAt n (inject+ m q) | splitAt-inject+ n m q
+concat-inductive-left {n} {m} {[]} {c ∷ v} {.x} {nfaL} {nfaR} (fst , snd) | inj₁ x | refl with x ∈? Nfa.F nfaL
+concat-inductive-left {n} {m} {[]} {c ∷ v} {.x} {nfaL} {nfaR} (fst , snd) | inj₁ x | refl | yes p₁ with biglem {m}{c}{v} snd
+... | w , t , f with lem1ʳ (Nfa.δ nfaL x c) (Nfa.δ nfaR (Nfa.S nfaR) c) w t
+... | pur  = fromExists (raise n w , joinand pur (concat-right-preserved {n}{m}{v}{w}{nfaL}{nfaR} f))
+concat-inductive-left {n} {m} {[]} {c ∷ v} {.x} {nfaL} {nfaR} (fst , snd) | inj₁ x | refl | no ¬p = ⊥-elim (¬p (lemmaLookupT fst))
+concat-inductive-left {n} {m} {c ∷ s} {v} {q} {nfaL} {nfaR} (fst , snd) with biglem {n}{c}{s} fst
+... | w , t , f with splitAt n (inject+ m q) | splitAt-inject+ n m q
+concat-inductive-left {n} {m} {c ∷ s} {v} {.q} {nfaL} {nfaR} (fst , snd) | w , t , f | inj₁ q | refl with q ∈? Nfa.F nfaL
+concat-inductive-left {n} {m} {c ∷ s} {v} {.q} {nfaL} {nfaR} (fst , snd) | w , t , f | inj₁ q | refl | yes p₁ with concat-inductive-left {n}{m}{s}{v}{w}{nfaL}{nfaR} (f , snd)
+... | ind  with lem1ˡ (Nfa.δ nfaL q c) (Nfa.δ nfaR (Nfa.S nfaR) c) w t
+... | pur = fromExists (inject+ m w , joinand pur ind)
+concat-inductive-left {n} {m} {c ∷ s} {v} {.q}{nfaL} {nfaR} (fst , snd) | w , t , f | inj₁ q | refl | no ¬p with concat-inductive-left {n}{m}{s}{v}{w}{nfaL}{nfaR} (f , snd)
+... | ind  with lem1ˡ (Nfa.δ nfaL q c) ∅ w t
+... | pur = fromExists (inject+ m w , joinand pur ind)
+
+concat-closure : ∀{n m : ℕ} {s v : String} {nfaL : Nfa n} {nfaR : Nfa m}
+  → (nfaL ↓ s) × (nfaR ↓ v)
+    --------------------------------
+  → (concatNfa nfaL nfaR) ↓ (s ++ˢ v)
+concat-closure {n} {m} {[]} {[]} {nfaL} {nfaR} (fst , snd) with Nfa.S nfaL ∈? Nfa.F nfaL | Nfa.S nfaR ∈? Nfa.F nfaR
+...| yes ε∈l | yes ε∈r = tt
+...| yes ε∈l | no ¬ε∈r = ⊥-elim(¬ε∈r (lemmaLookupT snd))
+...| no ¬ε∈l | yes ε∈r = ⊥-elim(¬ε∈l (lemmaLookupT fst))
+...| no ¬ε∈l | no ¬ε∈r = ⊥-elim(¬ε∈l (lemmaLookupT fst))
+concat-closure {n} {m} {[]} {c ∷ v} {nfaL} {nfaR} (fst , snd) with Nfa.S nfaL ∈? Nfa.F nfaL | v[i]=v!i (Nfa.F nfaL) (Nfa.S nfaL)
+concat-closure {n} {m} {[]} {c ∷ v} {nfaL} {nfaR} (fst , snd) | yes p | _ with (Nfa.F nfaL) ! (Nfa.S nfaL)
+concat-closure {n} {m} {[]} {c ∷ v} {nfaL} {nfaR} (fst , snd) | yes p | _ | true with biglem {m} {c}{v} snd
+... | w , t , f with lem1ʳ (Nfa.δ nfaL (Nfa.S nfaL) c) (Nfa.δ nfaR (Nfa.S nfaR) c) w t
+... | pur = fromExists (raise n w , joinand pur (concat-right-preserved {n}{m}{v} f))
+concat-closure {n} {m} {[]} {c ∷ v} {nfaL} {nfaR} (fst , snd) | no ¬p | _ = ⊥-elim (¬p (lemmaLookupT fst))
+concat-closure {n} {m} {c ∷ s} {v} {nfaL} {nfaR} (fst , snd) with biglem {n}{c}{s} fst
+... | w , t , f  with concat-inductive-left {n}{m}{s}{v} (f , snd)
+... | ur with Nfa.S nfaL ∈? Nfa.F nfaL | v[i]=v!i (Nfa.F nfaL) (Nfa.S nfaL)
+concat-closure {n} {m} {c ∷ s} {v} {nfaL} {nfaR} (fst , snd) | w , t , f | ur | yes p | _ with lookup (Nfa.F nfaL) (Nfa.S nfaL)
+concat-closure {n} {m} {c ∷ s} {v} {nfaL} {nfaR} (fst , snd) | w , t , f | ur | yes p | _ | false with lem1ˡ (Nfa.δ nfaL (Nfa.S nfaL) c) ∅ w t
+... | pur = injectOrR (fromExists (inject+ m w , joinand pur ur))
+concat-closure {n} {m} {c ∷ s} {v} {nfaL} {nfaR} (fst , snd) | w , t , f | ur | yes p | _ | true with lem1ˡ (Nfa.δ nfaL (Nfa.S nfaL) c) (Nfa.δ nfaR (Nfa.S nfaR) c) w t
+... | pur = injectOrR (fromExists (inject+ m w , joinand pur ur))
+concat-closure {n} {m} {c ∷ s} {v} {nfaL} {nfaR} (fst , snd) | w , t , f | ur | no ¬p | _  with lookup (Nfa.F nfaL) (Nfa.S nfaL)
+concat-closure {n} {m} {c ∷ s} {v} {nfaL} {nfaR} (fst , snd) | w , t , f | ur | no ¬p | _ | false with lem1ˡ (Nfa.δ nfaL (Nfa.S nfaL) c) ∅ w t
+... | pur = fromExists (inject+ m w , joinand pur ur)
+concat-closure {n} {m} {c ∷ s} {v} {nfaL} {nfaR} (fst , snd) | w , t , f | ur | no ¬p | _ | true with lem1ˡ (Nfa.δ nfaL (Nfa.S nfaL) c) (Nfa.δ nfaR (Nfa.S nfaR) c) w t
+... | pur = fromExists (inject+ m w , joinand pur ur)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
