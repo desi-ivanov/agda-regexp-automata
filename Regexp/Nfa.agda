@@ -3,7 +3,7 @@ open import Data.Char as Char using (Char)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; _≥_; _<?_; _≤?_; s≤s; z≤n)
 open import Data.Fin
   using (Fin; inject+; 0F; raise)
-  renaming (zero to fzero; suc to fsuc)
+  renaming (zero to fzero; suc to fsuc; _<_ to _<f_; _<?_ to _<f?_)
 open import Data.Fin.Subset as Subset
   using (Subset; ⁅_⁆; _∪_; _∩_; _∈_; _⊆_; Nonempty)
   renaming (⊥ to ∅; ⊤ to FullSet)
@@ -24,6 +24,7 @@ open import VecUtil
 open import Equivalence
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; subst; sym; trans; cong)
+open import Relation.Nullary.Negation using (contradiction)
 
 record Nfa (n : ℕ) : Set where
   field
@@ -288,12 +289,6 @@ union-cl-r {n} {m} {c ∷ s} {nfaL} {nfaR} p with  biglem {m} {c} {s} p
 ... | ur with lem1ʳ (Nfa.δ nfaL (Nfa.S nfaL) c) (Nfa.δ nfaR (Nfa.S nfaR) c) w t
 ... | pur = fromExists ((raise n w) , (joinand pur ur))
 
-union-closure : ∀{n m : ℕ} {s t : String} {nfaL : Nfa n} {nfaR : Nfa m}
-  → (nfaL ↓ s) × (nfaR ↓ t)
-  → let union = unionNfa nfaL nfaR in
-    -------------------------
-    ( union ↓ s × union ↓ t )
-union-closure {n}{m}{s}{t}{nfaL}{nfaR} (fst , snd) = union-cl-l {n}{m}{s} fst ,  union-cl-r {n}{m}{t}  snd
 
 
 concat-right-preserved : ∀{n m : ℕ} {v : String} {p}{nfaL : Nfa n} {nfaR : Nfa m}
@@ -411,6 +406,54 @@ star-closure {n} {c ∷ s} {[]} {nfa} (fst , snd) rewrite ++-idʳ (s) with bigle
 star-closure {n} {[]} {c ∷ v} {nfa} (fst , snd) rewrite ++-idˡ (c ∷ v) = snd
 star-closure {n} {c ∷ s} {v} {nfa} (fst , snd) with biglem {n} {c} {s} fst
 ... | w , t , f = fromExists (w , (joinand t (star-inductive {n}{s}{v}{w}{nfa} (f , snd))))
+
+open Nfa
+
+lem0 : ∀{n} → (q : Fin (suc n)) (vec : Subset n) → T ((false ∷v vec) ! q) → 0F Data.Fin.< q
+lem0 (fsuc q) vec t = s≤s z≤n
+
+lem2 : ∀{n} → (q : Fin (suc n)) → 0F Data.Fin.< q → ∃[ p ] (q ≡ fsuc p)
+lem2 (fsuc q) _ = q , refl
+
+lem5 : ∀{n} {q} (ss : Subset n) → T (ss ! q) → ss ! q ≡ true
+lem5 {_} {0F} (true ∷v ss) t = refl
+lem5 {_} {fsuc q} (x ∷v ss) t = lem5 ss t
+
+star-inv-ind : ∀{n} {s : String} {nfa : Nfa n}
+  → (q : Fin n)
+  → T(accepts (starNfa nfa) (fsuc q) s)
+  → ¬ (q ∈ F nfa)
+  → ∃[ u ] ∃[ v ] (s ≡ u ++ˢ v × T(accepts nfa q u) × T (any (λ p → F nfa ! p ∧ accepts (starNfa nfa) (fsuc p) v)))
+star-inv-ind {n} {[]} {nfa} q ac nf with lem1ʳ (true ∷v []v) (F nfa) q ac | v[i]=v!i (F nfa) q
+... | lm | u rewrite lem5 (F nfa) lm = ⊥-elim(nf u)
+star-inv-ind {n} {x ∷ s} {nfa} q ac nf with biglem {_} {x} {s} {fsuc q} {starNfa nfa} ac
+... | w , t , f with q ∈? F nfa
+... | yes p = ⊥-elim(nf p)
+... | no ¬p with lem2 w (lem0 w (δ nfa q x) t)
+... | fsw , snd rewrite snd with fsw ∈? F nfa
+... | yes p2 = x ∷ [] , s , refl
+  , fromExists (fsw , joinand t (subst (λ v → T v) (sym (s!i≡s[i] p2)) tt))
+  , fromExists (fsw , joinand (subst (λ v → T v) (sym (s!i≡s[i] p2)) tt) f)
+... | no ¬p2 with star-inv-ind {n} {s} {nfa} fsw f ¬p2
+... | u , v , eq , acind , decin = x ∷ u , v , cong (x ∷_) eq , fromExists (fsw , joinand t acind) , decin
+
+star-inv : ∀{n} {s : String} {nfa : Nfa n}
+  → (starNfa nfa) ↓ s
+  → ¬ (s ≡ [])
+  → ∃[ u ] ∃[ v ](s ≡ u ++ˢ v × nfa ↓ u × T (any (λ p → F nfa ! p ∧ accepts (starNfa nfa) (fsuc p) v)))
+star-inv {n} {[]} {nfa} d1 ne = ⊥-elim (ne refl)
+star-inv {n} {c ∷ s} {nfa} d1 ne with anyToExists {n} d1
+... | fst , snd with fst ∈? F nfa
+star-inv {n} {c ∷ s} {nfa} d1 ne | fst , snd | yes p =
+  c ∷ [] , s , refl
+    , fromExists (fst , joinand (proj₁ (splitand snd)) (subst (λ v → T v) (sym (s!i≡s[i] p)) tt))
+    , fromExists (fst , joinand (subst (λ v → T v) (sym (s!i≡s[i] p)) tt) (proj₂ (splitand snd)))
+star-inv {n} {c ∷ s} {nfa} d1 ne | fst , snd | no ¬p with star-inv-ind {n}{s} {nfa} (fst) (proj₂ (splitand snd)) ¬p
+... | u , v , eq , l , z =
+  c ∷ u , v , cong (c ∷_) eq , fromExists (fst , (joinand (proj₁ (splitand snd)) l) ) , z
+
+
+
 
 
 
