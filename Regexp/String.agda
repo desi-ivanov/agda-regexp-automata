@@ -1,4 +1,5 @@
 module String where
+open import Data.Nat using (ℕ; zero; suc)
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl)
 open Eq.≡-Reasoning
@@ -31,3 +32,17 @@ _++_ : String → String → String
 foldl : ∀ {B : Set} → (Char → B → B) → B →  String → B
 foldl f b [] = b
 foldl f b (x ∷ xs) = foldl f (f x b) xs
+
+length : String → ℕ
+length [] = zero
+length (x ∷ xs) = suc (length xs)
+
+take : ℕ → String → String
+take zero    xs       = []
+take (suc n) []       = []
+take (suc n) (x ∷ xs) = x ∷ take n xs
+
+drop : ℕ → String → String
+drop zero    xs       = xs
+drop (suc n) []       = []
+drop (suc n) (x ∷ xs) = drop n xs
