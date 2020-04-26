@@ -1,7 +1,7 @@
 module RegexpNfa where
 open import Equivalence
 open import Data.Char as Char using (Char)
-open import Data.Nat as ℕ using (ℕ; zero; suc)
+open import Data.Nat as ℕ using (ℕ; zero; suc; _<′_)
 open import Data.Nat.Properties
 open import Data.Fin
   using (Fin; toℕ; inject+; raise; 0F; 1F; 2F; 3F; 4F; 5F; 6F)
@@ -14,14 +14,17 @@ open import Data.Bool using (Bool; false; true; not; T)
 open import Data.Empty as Empty using (⊥; ⊥-elim)
 open import Relation.Nullary.Negation using (contradiction)
 open import Data.Unit using (⊤; tt)
-open import String using (String; _∷_; []) renaming (_++_ to _++ˢ_)
+open import String using (String; _∷_; []; length) renaming (_++_ to _++ˢ_)
 open import Data.Product using (_×_; Σ; ∃; ∃₂; Σ-syntax; ∃-syntax; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Regexp
-open import Nfa
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; _≢_; subst; sym; trans; cong)
 open import VecUtil
+open import Nfa hiding (Acc)
+open import Induction.Nat
+open import Induction.WellFounded
+
 nfa-∅ : Nfa 1
 nfa-∅ = record { S = 0F ; δ = λ _ _ → FullSet ; F = ∅ }
 
@@ -76,12 +79,6 @@ only-ε∈⟨ε⟩ : (s : String) → ¬ (s ≡ ε) → ¬ (s ∈ ⟨ε⟩)
 only-ε∈⟨ε⟩ [] neq = λ _ → neq refl
 only-ε∈⟨ε⟩ (x ∷ s) neq = λ ()
 
-{-# TERMINATING #-}
-star-from : ∀{n} → (nfa : Nfa n) → (R : RegExp) → ((s : String) → s ∈ R ⇔ nfa ↓ s) → (s : String) → starNfa nfa ↓ s → s ∈ (R *)
-star-from _ _ _ [] ds = in-*1
-star-from {n} nfa R ac (x ∷ s) ds with star-closure-inverse {n} {x} {s} ds
-... | u , v , eq , fl , nxt rewrite eq = in-*2 (_⇔_.from (ac (x ∷ u)) fl) (star-from nfa R ac v nxt)
-
 RegExp->Nfa : (R : RegExp)
     → ∃₂ λ (n : ℕ) (nfa : Nfa n)
       → ∀ (s : String)
@@ -99,7 +96,8 @@ RegExp->Nfa (Atom c) = 3 , nfa-c c , λ{  [] → (λ ()) IFF (λ ()); (x ∷ s) 
     right : ∀{x}{s} → nfa-c c ↓ (x ∷ s) → (x ∷ s) ∈ Atom c
     right {x}{s} d rewrite nfa-c-correct-from {c} {x ∷ s} d = in-c c
 RegExp->Nfa (R RegExp.+ F) with RegExp->Nfa R | RegExp->Nfa F
-... | n , nfaL , acL | m , nfaR , acR = 1 ℕ.+ n ℕ.+ m , unionNfa nfaL nfaR , λ s → to s IFF (from s)
+... | n , nfaL , acL | m , nfaR , acR =
+  1 ℕ.+ n ℕ.+ m , unionNfa nfaL nfaR , λ s → to s IFF (from s)
   where
     to :  (s : String) → s ∈ (R + F) → T (accepts (unionNfa nfaL nfaR) 0F s)
     to s (in+l inl) = union-cl-l {n}{m}{s} (_⇔_.to (acL s) inl)
@@ -111,7 +109,8 @@ RegExp->Nfa (R RegExp.+ F) with RegExp->Nfa R | RegExp->Nfa F
     from s d | inj₂ y = in+r (_⇔_.from (acR s) y)
 
 RegExp->Nfa (R · F) with RegExp->Nfa R | RegExp->Nfa F
-... | n , nfaL , acL | m , nfaR , acR = 1 ℕ.+ n ℕ.+ m , concatNfa nfaL nfaR , λ s → to s IFF (from s)
+... | n , nfaL , acL | m , nfaR , acR =
+  1 ℕ.+ n ℕ.+ m , concatNfa nfaL nfaR , λ s → to s IFF (from s)
   where
     to : (s : String) → s ∈ (R · F) → (concatNfa nfaL nfaR) ↓ s
     to _ (in-· {s} {t} inL inR) = concat-closure {n} {m} {s} {t}  (_⇔_.to (acL s) inL , _⇔_.to (acR t) inR  )
@@ -120,11 +119,35 @@ RegExp->Nfa (R · F) with RegExp->Nfa R | RegExp->Nfa F
     from s d with concat-closure-inv {n}{m}{s} d
     from s d | u , v , eq , dL , dR rewrite eq = in-· (_⇔_.from (acL u) dL) (_⇔_.from (acR v) dR)
 RegExp->Nfa (R *) with RegExp->Nfa R
-... | n , nfa , ac = 1 ℕ.+ n , starNfa nfa , λ s →  record { to = to s ; from = star-from nfa R ac s }
+... | n , nfa , IH =
+  1 ℕ.+ n , starNfa nfa , λ s → (to s) IFF (from s)
   where
     to : (s : String) → s ∈ (R *) → starNfa nfa ↓ s
     to _ in-*1 = tt
     to _ (in-*2 {s} {t} l r) with to t r
-    ... | u = star-closure {n}{s}{t} (_⇔_.to (ac s) l , u)
+    ... | u = star-closure {n}{s}{t} (_⇔_.to (IH s) l , u)
+
+    ∷-++-length-< : ∀{x s u v} → (x ∷ s) ≡ (x ∷ u) ++ˢ v → length v ℕ.<′ length (x ∷ s)
+    ∷-++-length-< {x} {.v} {[]} {v} refl = ℕ.≤′-refl
+    ∷-++-length-< {x} {x₂ ∷ .(u ++ˢ v)} {.x₂ ∷ u} {v} refl = ℕ.≤′-step (∷-++-length-< {x₂} {_}{u}{v} refl)
+
+    star-from-WF : (s : String)
+      → starNfa nfa ↓ s
+      → Acc _<′_ (length s)
+      → s ∈ (R *)
+    star-from-WF [] _ _ = in-*1
+    star-from-WF (x ∷ s) ds (acc go) with star-closure-inverse {n} {x} {s} ds
+    ... | u , v , eq , fl , nxt rewrite eq = in-*2 (_⇔_.from (IH (x ∷ u)) fl) (star-from-WF v nxt (go (length v) (∷-++-length-< eq)))
+
+    from : (s : String)
+      → starNfa nfa ↓ s
+      → s ∈ (R *)
+    from s ds = star-from-WF s ds (<′-wellFounded (length s))
+
+    -- {-# TERMINATING #-}
+    -- star-from : ∀{n} → (nfa : Nfa n) → (R : RegExp) → ((s : String) → s ∈ R ⇔ nfa ↓ s) → (s : String) → starNfa nfa ↓ s → s ∈ (R *)
+    -- star-from _ _ _ [] ds = in-*1
+    -- star-from {n} nfa R IH (x ∷ s) ds with star-closure-inverse {n} {x} {s} ds
+    -- ... | u , v , eq , fl , nxt rewrite eq = in-*2 (_⇔_.from (IH (x ∷ u)) fl) (star-from nfa R IH v nxt)
 
 --
