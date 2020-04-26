@@ -1,18 +1,36 @@
 module LTS where
 open import Regexp
 open import Equivalence
-open import Brzozowski using (Nullable; ε-seq; split-seq; split-*)
+open import Brzozowski using (isNullable; Nullable; ε-seq; split-seq; split-*)
 open import Data.Char as Char
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; cong; sym; subst; trans)
 open Eq.≡-Reasoning
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; _≡⟨_⟩_; _∎)
 open import String using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ; foldl)
-
 open import Relation.Nullary using (Dec; ¬_; yes; no)
+open import Relation.Nullary.Negation using (contradiction)
+open import Data.Nat using (_≤_)
 open import Data.Product using (_×_; Σ; ∃; Σ-syntax; ∃-syntax; _,_)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
+open import Data.Nat as ℕ using (ℕ; zero)
+open import Data.Fin using (Fin; 0F; 1F; raise; inject+) renaming (suc to fsuc; zero to fzero)
+open import Nfa using (splitAt; splitAt-inject+; splitAt-raise)
+open import Data.List.Relation.Unary.Any as Any using (Any; any)
+open import Data.List.Relation.Unary.All as All using (All)
+open import RegExpSet
+open import Data.List using ([]; _∷_; [_]; map; length)
+
+D : RegExp → RegExpSet
+D ⟨⟩ = EmptyRegExpSet
+D ⟨ε⟩ = ⟨ε⟩ ∷ []
+D (Atom c) = (Atom c) ∷ ⟨ε⟩ ∷ []
+D (E + F) = D E ∪ (D F)
+D (E · F) with any (isNullable) (D E)
+D (E · F) | yes p = map (_· F) (D E) ∪ (D F)
+D (E · F) | no ¬p = map (_· F) (D E)
+D (E *) = [ E * ] ∪ (map (_· E *) (D E))
 
 data LTS : RegExp → Char → RegExp → Set where
   LTS1 : (a : Char) → LTS (Atom a) a ⟨ε⟩
@@ -33,6 +51,65 @@ data LTS : RegExp → Char → RegExp → Set where
     → LTS E a E'
     → LTS (E *) a (E' · E *)
 
+lem2 : ∀{F x xs x₁} → Any (_≡_ x) xs → Any (_≡_ (x · F)) (x₁ · F ∷ map (_· F) xs)
+lem2 {F} (Any.here px) = Any.there (Any.here (cong (λ z → z · F) px))
+lem2 (Any.there an) = Any.there (lem2 an)
+
+lem1 : ∀{F ss1 ss2} → ss1 ⊆ ss2 → map (_· F) ss1 ⊆ map (_· F) ss2
+lem1 {F} All.[] = All.[]
+lem1 {F} (Any.here px All.∷ p) = Any.here (cong (λ z → z · F) px) All.∷ lem1 p
+lem1 {F} (Any.there px All.∷ p) = lem2 px All.∷ (lem1 p)
+
+lem4 : ∀{E F x₁ x₂ ss} → Any (_≡_ (x₁ · F)) (map (_· F) ss) → Any (_≡_ (x₁ · E)) (x₂ · E ∷ map (_· E) ss)
+lem4 {E} {F} {.x₃} {x₂} {x₃ ∷ ss} (Any.here refl) = Any.there (Any.here refl)
+lem4 {E} {F} {x₁} {x₂} {x₃ ∷ ss} (Any.there x) = Any.there (lem4 x)
+
+lem3 : ∀{E F ss1 ss2} → (map (_· F) ss1) ⊆ map (_· F) ss2 → (map (_· E) ss1) ⊆ map (_· E) ss2
+lem3 {E} {F} {[]} {ss2} x = All.[]
+lem3 {E} {F} {.y ∷ ss1} {y ∷ ss2} (Any.here refl All.∷ x) = (Any.here refl) All.∷ lem3 x
+lem3 {E} {F} {x₁ ∷ ss1} {x₂ ∷ ss2} (Any.there px All.∷ x) = lem4 px All.∷ lem3 x
+
+module D-Properties where
+  open Nullable
+  open import Data.List.Membership.Propositional renaming (_∈_ to _∈L_)
+  lem6 : ∀{E ss} → (E *) ∈L ss → Any Nullable ss
+  lem6 (Any.here refl) = Any.here null*
+  lem6 (Any.there ps) = Any.there (lem6 ps)
+
+  lem5 : ∀{E} → Nullable E → Any Nullable (D E)
+  lem5 null⟨ε⟩ = Any.here null⟨ε⟩
+  lem5 (null+l nlbl) = ∪-preserves-Pˡ (lem5 nlbl)
+  lem5 (null+r {E} nlbl) = ∪-preserves-Pʳ {D E} (lem5 nlbl)
+  lem5 (null, {E} nlblL nlblR) with any isNullable (D E)
+  lem5 (null, {E} {F} nlblL nlblR) | yes p = ∪-preserves-Pʳ {map (_· F) (D E)} (lem5 nlblR)
+  lem5 (null, nlblL nlblR) | no ¬p = ⊥-elim(¬p (lem5 nlblL))
+  lem5 (null* {F}) with (F *) ∈? map (_· F *) (D F)
+  lem5 (null* {F}) | no ¬p = Any.here null*
+  lem5 (null* {F}) | yes p = lem6 p
+
+
+Lemma2 : ∀ {E F a} → (LTS E a F) → D F ⊆ D E
+Lemma2 (LTS1 a) = Any.there (Any.here refl) All.∷ All.[]
+Lemma2 (LTS2 {F = F} lts) = ∪-preserves-⊆ʳ (Lemma2 lts) (D F)
+Lemma2 (LTS3 {E = E} lts) = ∪-preserves-⊆ˡ (Lemma2 lts) (D E)
+Lemma2 (LTS4 {_} {E} {F} {E'} lts) with Lemma2 lts
+... | IH with any isNullable (D E) | any isNullable (D E')
+... | yes p | no ¬p = ∪-preserves-⊆ʳ (lem1 IH) (D F)
+... | no ¬p | no ¬p₁ = lem1 IH
+... | yes p | yes p₁ = ∪-injects-∪⊆ʳ {map (_· F) (D E)} (∪-preserves-⊆ʳ (lem1 {F} IH) (D F))
+... | no ¬p | yes p = contradiction p (⊆-preserves-¬P IH ¬p)
+Lemma2 (LTS5 {a}{E}{F}{E'} x lts) with Lemma2 lts
+... | IH with any isNullable (D E)
+... | yes p = ∪-preserves-⊆ˡ IH (map (_· F) (D E))
+... | no ¬p = ⊥-elim(¬p (D-Properties.lem5 x))
+Lemma2 (LTS6 {a}{E}{E'} lts) with Lemma2 lts
+... | IH with any isNullable (D E')
+... | yes p with (E *) ∈? map (_· E *) (D E)
+... | yes p₁ = ∪-self-⊆ (lem3 {E *} (lem1 {E'} IH))
+... | no ¬p  = ∪-self-⊆ (∷-preserves-⊆ (lem3 {E *} (lem1 {E'} IH)))
+Lemma2 (LTS6 {a}{E}{E'} lts) | IH | no ¬p with (E *) ∈? map (_· E *) (D E)
+... | yes p = lem3 (lem1 {E'} IH)
+... | no ¬p₁ = ∷-preserves-⊆ (lem3 (lem1 {E'} IH))
 
 data LTSw : RegExp → String → RegExp → Set where
   LTSw[] : (E : RegExp) → LTSw E ε E
@@ -101,6 +178,103 @@ theorem1 = record { to = to ; from = from }
     from : ∀{w} {E} → ∃[ E' ] (LTSw E w E' × Nullable E') → w ∈ (E)
     from {[]} {.E'} (E' , LTSw[] .E' , nl) = _⇔_.from Brzozowski.theorem1 nl
     from {x ∷ w} {E} (E' , LTSw:: {_}{F} dl dr , nl) = _⇔_.to (lemma4 {x}{w}{E }) (F , dl , (from (E' , dr ,  nl)))
+
+-- theorem5 : (E : RegExp)
+--   → ∃[ n ] ( (∃[ E' ] ∃[ w ] LTSw E w E') ≲ Fin n )
+-- theorem5 ⟨⟩       = 1 , record { to = λ x → fzero ; from = λ x → ⟨⟩ , [] , LTSw[] ⟨⟩ ; from∘to = λ{  (.⟨⟩ , .[] , LTSw[] .⟨⟩) → refl  } }
+-- theorem5 ⟨ε⟩      = 1 , record { to = λ x → 0F ; from = λ x → ⟨ε⟩ , [] , LTSw[] ⟨ε⟩ ; from∘to = λ{  (.⟨ε⟩ , .[] , LTSw[] .⟨ε⟩) → refl } }
+-- theorem5 (Atom c) = 2 , record { to = λ{ (.(Atom c) , _ , LTSw[] .(Atom c)) → 0F; (x , _ , LTSw:: x₁ z) → 1F }
+--                                 ; from = λ{0F → (Atom c) , [] , LTSw[] (Atom c); 1F → (⟨ε⟩ , c ∷ [] , LTSw:: {_}{_}{⟨ε⟩} (LTS1 c)  (LTSw[] ⟨ε⟩) ) }
+--                                 ; from∘to = λ{(.(Atom c) , .[] , LTSw[] .(Atom c)) → refl;  (.⟨ε⟩ , .(c ∷ []) , LTSw:: (LTS1 c) (LTSw[] .⟨ε⟩)) → refl }
+--                               }
+-- theorem5 (E + F) with theorem5 E | theorem5 F
+-- ... | (n1 , iso1) | (n2 , iso2) = ℕ.suc (n1 ℕ.+ n2) , record { to = to ; from = from ; from∘to = from∘to }
+--   where
+--     to : ∃[ E' ] ∃[ w ] LTSw (E + F) w E' → Fin (1 ℕ.+ n1 ℕ.+ n2)
+--     to (.(E + F) , .[] , LTSw[] .(E + F)) = 0F
+--     to (a , w , LTSw:: (LTS2 x) c) = fsuc (inject+ n2 (_≲_.to iso1 (a , w , LTSw:: x c)))
+--     to (a , w , LTSw:: (LTS3 x) c) = fsuc (raise n1 (_≲_.to iso2 (a , w , LTSw:: x c )))
+--
+--     from : Fin (1 ℕ.+ n1 ℕ.+ n2) → ∃[ E' ] ∃[ w ] LTSw (E + F) w E'
+--     from 0F = E + F , [] , LTSw[] (E + F)
+--     from (fsuc n) with splitAt n1 n
+--     from (fsuc n) | inj₁ x with _≲_.from iso1 x
+--     from (fsuc n) | inj₁ x | a , .[] , LTSw[] .a = E + F , [] , LTSw[] (E + F)
+--     from (fsuc n) | inj₁ x | a , w , LTSw:: b c = a , w , LTSw:: (LTS2 b) c
+--     from (fsuc n) | inj₂ y with _≲_.from iso2 y
+--     from (fsuc n) | inj₂ y | a , .[] , LTSw[] .a = E + F , [] , LTSw[] (E + F)
+--     from (fsuc n) | inj₂ y | a , w , LTSw:: b c = a , w , LTSw:: (LTS3 b) c
+--
+--     from∘to : (x : ∃[ E' ] ∃[ w ] LTSw (E + F) w E') → from (to x) ≡ x
+--     from∘to (.(E + F) , .[] , LTSw[] .(E + F)) = refl
+--     from∘to (a , w , LTSw:: (LTS2 x) c) with _≲_.from∘to iso1 (a , w , LTSw:: x c)
+--     ... | u with _≲_.to iso1 (a , w , LTSw:: x c)
+--     ... | j with splitAt n1 (inject+ n2 j) | splitAt-inject+ n1 n2 j
+--     ... | _ | refl rewrite u = refl
+--     from∘to (a , w , LTSw:: (LTS3 x) c) with _≲_.from∘to iso2 (a , w , LTSw:: x c)
+--     ... | u with _≲_.to iso2 (a , w , LTSw:: x c)
+--     ... | j with splitAt n1 (raise n1 j) | splitAt-raise n1 n2 j
+--     ... | _ | refl rewrite u = refl
+--
+-- theorem5 (E · F) with theorem5 E | theorem5 F
+-- ... | (n1 , iso1) | (n2 , iso2) = ℕ.suc (n1 ℕ.+ n2) , record { to = to ; from = from ; from∘to = from∘to }
+--   where
+--
+--     to : ∃[ E' ] ∃[ w ] LTSw (E · F) w E' → Fin (1 ℕ.+ n1 ℕ.+ n2)
+--     to (.(_ · F) , .[] , LTSw[] .(_ · F)) = 0F
+--     to (a , (t ∷ ts) , LTSw:: (LTS4 {_}{_}{_}{E'} x) c) = fsuc (inject+ n2 (_≲_.to iso1 (a , t ∷ ts , {!   !} ) ) )
+--     to (a , (t ∷ ts) , LTSw:: (LTS5 nl x) c) = fsuc (raise n1 (_≲_.to iso2 (a , t ∷ ts , LTSw:: x c )))
+--
+--     from : ∀{G} → Fin (1 ℕ.+ n1 ℕ.+ n2) → ∃[ E' ] ∃[ w ] LTSw (G · F) w E'
+--     from {G} 0F = G · F , [] , LTSw[] (G · F)
+--     from {G} (fsuc n) with splitAt n1 n
+--     from {G} (fsuc n) | inj₁ y with _≲_.from iso1 y
+--     from {G} (fsuc n) | inj₁ y | a , .[] , LTSw[] .a = G · F , [] , LTSw[] (G · F)
+--     from {G} (fsuc n) | inj₁ y | a , w , LTSw:: x c = {!   !}
+--     from {G} (fsuc n) | inj₂ y with _≲_.from iso2 y
+--     from {G} (fsuc n) | inj₂ y | a , .[] , LTSw[] .a = G · F , [] , LTSw[] (G · F)
+--     from {G} (fsuc n) | inj₂ y | a , w , LTSw:: x c = a , w , {!   !}
+--
+--     from∘to : (x : ∃[ E' ] ∃[ w ] LTSw (E · F) w E') → from (to x) ≡ x
+--     from∘to = {!   !}
+--
+-- theorem5 (E *) with theorem5 E
+-- ... | (n , iso) = ℕ.suc n , record { to = to ; from = from ; from∘to = from∘to }
+--   where
+--     to : ∃[ E' ] ∃[ w ] LTSw (E *) w E' → Fin (1 ℕ.+ n)
+--     to (.(E *) , .[] , LTSw[] .(E *)) = 0F
+--     to (a , t ∷ ts , LTSw:: (LTS6 {_} {_} {E'} x) c) = fsuc (_≲_.to iso (a , (t ∷ ts) ,  LTSw:: x {!   !} ))
+--
+--
+--     from : Fin (1 ℕ.+ n) → ∃[ E' ] ∃[ w ] LTSw (E *) w E'
+--     from 0F = E * , [] , LTSw[] (E *)
+--     from (fsuc n) with _≲_.from iso n
+--     from (fsuc n) | a , .[] , LTSw[] .a = E * , [] , LTSw[] (E *)
+--     from (fsuc n) | a , (t ∷ xs) , LTSw:: {_}{F} x c = a , (t ∷ xs) , LTSw:: (LTS6 x) {!   !}
+--
+--     from∘to : (x : ∃[ E' ] ∃[ w ] LTSw (E *) w E') → from (to x) ≡ x
+--     from∘to (.(E *) , .[] , LTSw[] .(E *)) = refl
+--     from∘to (a , t ∷ ts , LTSw:: (LTS6 {_}{_}{E'} x) c) with _≲_.from∘to iso (a , t ∷  ts , LTSw:: {!   !} c )
+--     ... | u = {!   !}
+--
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
