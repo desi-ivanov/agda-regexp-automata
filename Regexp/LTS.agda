@@ -178,24 +178,45 @@ theorem1 = record { to = to ; from = from }
     from {[]} {.E'} (E' , LTSw[] .E' , nl) = _⇔_.from Brzozowski.theorem1 nl
     from {x ∷ w} {E} (E' , LTSw:: {_}{F} dl dr , nl) = _⇔_.to (lemma4 {x}{w}{E }) (F , dl , (from (E' , dr ,  nl)))
 
-derivatesList : ∀{E E' w} → LTSw E w E' → List (RegExpSet)
-derivatesList (LTSw[] E) = []
-derivatesList (LTSw:: {E}{F}{_}{c} x d) = (D F) ∷ derivatesList d
-
 open All.All
+open Any.Any
 
-lem7 : ∀{a b c} → b ⊆ a → All (_⊆ b) c → All (_⊆ a) c
-lem7 [] [] = []
-lem7 [] ([] ∷ y) = [] ∷ (lem7 [] y)
-lem7 (px ∷ x) [] = []
-lem7 (px ∷ x) (px₁ ∷ y) = (⊆-trans px₁ (px ∷ x) ) ∷ lem7 (px ∷ x) y
+lem7 : ∀{a b c} → b ⊆ a → All (_∈ˡ b) c → All (_∈ˡ a) c
+lem7 pxs [] = []
+lem7 pxs (py ∷ pys) = ⊆-preserves-∈ pxs py ∷ lem7 pxs pys
 
-theorem5 : ∀{E F w} → (l : LTSw E w F) → All (_⊆ D E) (derivatesList l)
+lem9 : ∀{E' F ss} → E' ∈ˡ ss → (E' · F) ∈ˡ (map (_· F) ss)
+lem9 {F = F} (here px) = here (cong (λ z → z · F) px)
+lem9 (there px) = there (lem9 px)
+
+lem8 : ∀{E x F} → LTS E x F → F ∈ˡ D E
+lem8 (LTS1 a) = there (here refl)
+lem8 (LTS2 lts) = ∪-preserves-∈ˡ (lem8 lts)
+lem8 (LTS3 {_}{E} lts) = ∪-preserves-∈ʳ {D E} (lem8 lts)
+lem8 (LTS4 {_}{E} lts) with lem8 lts
+... | IH  with any isNullable (D E)
+lem8 (LTS4 {_} {E} lts) | IH | yes p = ∪-preserves-∈ˡ (lem9 IH)
+lem8 (LTS4 {_} {E} lts) | IH | no ¬p = lem9 IH
+lem8 (LTS5 {_} {E} x lts) with lem8 lts
+... | IH with any isNullable (D E)
+lem8 (LTS5 {_} {E} {F} x lts) | IH | yes p = ∪-preserves-∈ʳ {map (_· F) (D E)} IH
+lem8 (LTS5 {_} {E} x lts) | IH | no ¬p = contradiction (D-Properties.lem5 x) ¬p
+lem8 (LTS6 {_} {E} lts) with lem8 lts
+... | IH with (E *) ∈? map (_· E *) (D E)
+lem8 (LTS6 {_} {E} lts) | IH | yes p = lem9 IH
+lem8 (LTS6 {_} {E} lts) | IH | no ¬p = there (lem9 IH)
+
+LTSwToList₃ : ∀{E E' w} → LTSw E w E' → List RegExp
+LTSwToList₃ (LTSw[] E) = []
+LTSwToList₃ (LTSw:: {_}{F} x d) = F ∷ LTSwToList₃ d
+
+theorem5 : ∀{E F w} → (l : LTSw E w F) → All (_∈ˡ (D E)) (LTSwToList₃ l)
 theorem5 (LTSw[] E) = []
-theorem5 (LTSw:: x l) with Lemma2 x
-... | DF⊆DE  = DF⊆DE ∷ (lem7 DF⊆DE (theorem5 l))
+theorem5 (LTSw:: x l) = lem8 x ∷ (lem7 (Lemma2 x) (theorem5 l))
 
-
+theorem5′ : ∀{E F G w} → LTSw F w G → D F ⊆ D E → D G ⊆ D E
+theorem5′ (LTSw[] E) ss = ss
+theorem5′ {E} (LTSw:: x lw) ss = theorem5′ {E} lw (⊆-trans (Lemma2 x) ss)
 
 
 
