@@ -94,8 +94,10 @@ postulate
   ⊆-preserves-¬P : ∀{a b} {P : RegExp → Set} → a ⊆ b → ¬ (Any P b) → ¬ (Any P a)
   ⊆-refl : ∀{a} → a ⊆ a
   ⊆-trans : ∀{a b c} → a ⊆ b → b ⊆ c → a ⊆ c
-
-
+  ⊆-preserves-∈ : ∀{a b c} → b ⊆ a → c ∈ b → c ∈ a
+  ∪-preserves-∈ˡ : ∀{a b c} → c ∈ a → c ∈ (a ∪ b)
+  ∪-preserves-∈ʳ : ∀{a b c} → c ∈ b → c ∈ (a ∪ b)
+  ∷-preserves-∈ : ∀{a b}{c : RegExp} → b ∈ a → b ∈ (c ∷ a)
 
 
 
