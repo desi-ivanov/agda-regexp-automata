@@ -1,6 +1,6 @@
 module Nfa where
 open import Data.Char as Char using (Char)
-open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; _<_; _≥_; _<?_; _≤?_; s≤s; z≤n)
+open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; _<_; _≥_; _<?_; _≤?_; s≤s; z≤n; _∸_)
 open import Data.Fin
   using (Fin; inject+; 0F; raise)
   renaming (zero to fzero; suc to fsuc; _<_ to _<f_; _<?_ to _<f?_)
@@ -16,7 +16,7 @@ open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Unit using (⊤; tt)
 open import Data.Empty using (⊥-elim)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
-open import String using (String; _∷_; []; ++-idˡ; ++-idʳ; take; drop; ++-assoc; length) renaming (_++_ to _++ˢ_)
+open import String using (String; _∷_; _∷r_; []; ++-idˡ; ++-idʳ; take; drop; ++-assoc; length) renaming (_++_ to _++ˢ_)
 open import Data.Vec renaming (_∷_ to _∷v_; [] to []v) hiding (concat; splitAt; take; drop)
 open import Data.Vec.Properties
 open import Data.Vec.Relation.Unary.Any using (index) renaming (any to any?)
@@ -260,7 +260,7 @@ lem6 {n} a b q ac | inj₂ x = inj₂ (lem12 x)
 lem9 : ∀{n}{v : Subset n} {t : Fin n} → v [ t ]= true → T (v ! t)
 lem9 {_} {true ∷v v} {0F} d = tt
 lem9 {_} {x ∷v v} {fsuc t} (there d) = lem9 d
-
+open Nfa
 
 union-accepts-left : ∀{n m} {s} {q} {nfaL : Nfa n} {nfaR : Nfa m}
   → T (accepts nfaL q s)
@@ -541,74 +541,31 @@ concat-closure-inv {n} {m} {x ∷ s} {nfaL} {nfaR} d | w , t , f | no ¬p | inj�
 
 --------------------------------------------------------------------------------
 
-star-inv-ind : ∀{n} {s : String} {nfa : Nfa n}
+star-inv-inductive : ∀{n}{s}{nfa}
   → (q : Fin n)
   → T(accepts (starNfa nfa) (fsuc q) s)
-  → ¬ (q ∈ F nfa)
-  → ∃[ u ] ∃[ v ] (s ≡ u ++ˢ v × T(accepts nfa q u) × T (any (λ p → F nfa ! p ∧ accepts (starNfa nfa) (fsuc p) v)))
-star-inv-ind {n} {[]} {nfa} q ac nf with lem1ʳ (true ∷v []v) (F nfa) q ac | v[i]=v!i (F nfa) q
-... | lm | u rewrite lem5 (F nfa) lm = ⊥-elim(nf u)
-star-inv-ind {n} {x ∷ s} {nfa} q ac nf with biglemma {_} {x} {s} {fsuc q} {starNfa nfa} ac
+  → ∃[ u ] ∃[ v ] (s ≡ u ++ˢ v × T(accepts nfa q u) × starNfa nfa ↓ v)
+star-inv-inductive {n} {[]} {nfa} q ac = [] , [] , refl , ac , tt
+star-inv-inductive {n} {x ∷ s} {nfa} q ac with biglemma {_}{x}{s}{fsuc q}{starNfa nfa} ac
 ... | w , t , f with q ∈? F nfa
-... | yes p = ⊥-elim(nf p)
-... | no ¬p with lem2 w (lem0 w (δ nfa q x) t)
-... | fsw , snd rewrite snd with fsw ∈? F nfa
-... | yes p2 = x ∷ [] , s , refl
-  , fromExists (fsw , joinand t (subst (λ v → T v) (sym (s!i≡s[i] p2)) tt))
-  , fromExists (fsw , joinand (subst (λ v → T v) (sym (s!i≡s[i] p2)) tt) f)
-... | no ¬p2 with star-inv-ind {n} {s} {nfa} fsw f ¬p2
-... | u , v , eq , acind , decin = x ∷ u , v , cong (x ∷_) eq , fromExists (fsw , joinand t acind) , decin
+star-inv-inductive {n} {x ∷ s} {nfa} q ac | w , t , f | yes p with lem2 w (lem0 w (δ nfa (S nfa) x ∪ δ nfa q x) t)
+star-inv-inductive {n} {x ∷ s} {nfa} q ac | .(fsuc fst) , t , f | yes p | fst , refl with lem6 (δ nfa (S nfa) x) (δ nfa q x) fst t
+star-inv-inductive {n} {x ∷ s} {nfa} q ac | .(fsuc fst) , t , f | yes p | fst , refl | inj₁ x₁ = [] , x ∷ s , refl , lem12 p , fromExists (fst , joinand x₁ f)
+star-inv-inductive {n} {x ∷ s} {nfa} q ac | .(fsuc fst) , t , f | yes p | fst , refl | inj₂ y with star-inv-inductive  {n}{s}{nfa} fst f
+... | u , v , eq , acind , decind = x ∷ u , v , cong (_∷_ x) eq , fromExists (fst , joinand y acind) , decind
+star-inv-inductive {n} {x ∷ s} {nfa} q ac | w , t , f | no ¬p with lem2 w (lem0 w (δ nfa q x) t)
+star-inv-inductive {n} {x ∷ s} {nfa} q ac | .(fsuc fst) , t , f | no ¬p | fst , refl with star-inv-inductive {n}{s}{nfa} fst f
+... | u , v , eq , acind , decind = x ∷ u , v , cong (_∷_ x) eq , fromExists (fst , joinand t acind) , decind
 
-star-inv-Base : ∀{n} {s : String} {nfa : Nfa n}
+star-inv : ∀{n} {s : String} {nfa : Nfa n}
   → (starNfa nfa) ↓ s
   → ¬ (s ≡ [])
-  → ∃[ u ] ∃[ v ](s ≡ u ++ˢ v × nfa ↓ u × T (any (λ p → F nfa ! p ∧ accepts (starNfa nfa) (fsuc p) v)))
-star-inv-Base {n} {[]} {nfa} d1 ne = ⊥-elim (ne refl)
-star-inv-Base {n} {c ∷ s} {nfa} d1 ne with anyToExists {n} d1
-... | fst , snd with fst ∈? F nfa
-star-inv-Base {n} {c ∷ s} {nfa} d1 ne | fst , snd | yes p =
-  c ∷ [] , s , refl
-    , fromExists (fst , joinand (proj₁ (splitand snd)) (subst (λ v → T v) (sym (s!i≡s[i] p)) tt))
-    , fromExists (fst , joinand (subst (λ v → T v) (sym (s!i≡s[i] p)) tt) (proj₂ (splitand snd)))
-star-inv-Base {n} {c ∷ s} {nfa} d1 ne | fst , snd | no ¬p with star-inv-ind {n}{s} {nfa} (fst) (proj₂ (splitand snd)) ¬p
-... | u , v , eq , l , z =
-  c ∷ u , v , cong (c ∷_) eq , fromExists (fst , (joinand (proj₁ (splitand snd)) l) ) , z
-
-star-acc-from-fin : ∀{n} {s : String} {nfa : Nfa n}
-  → (q : Fin n)
-  → T(accepts (starNfa nfa) (fsuc q) s)
-  → (q ∈ F nfa)
-  → ∃[ u ] ∃[ v ] (s ≡ u ++ˢ v × (T(accepts nfa q u) ⊎ nfa ↓ u))
-star-acc-from-fin {n} {[]} {nfa} q ac isf = [] , [] , refl , inj₁ ac
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf with biglemma {_}{x}{s}{fsuc q}{starNfa nfa} ac
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | w , t , f with q ∈? F nfa
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | w , t , f | yes p with lem2 w (lem0 w (δ nfa (S nfa) x ∪ δ nfa q x) t)
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | .(fsuc fst) , t , f | yes p | fst , refl with fst ∈? F nfa
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | .(fsuc fst) , t , f | yes p | fst , refl | yes p₁ with lem6 (δ nfa (S nfa) x) (δ nfa q x) fst t
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | .(fsuc fst) , t , f | yes p | fst , refl | yes p₁ | inj₁ x₁ = x ∷ [] , s , refl , inj₂ (fromExists (fst , joinand x₁ (lem12 p₁)  ))
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | .(fsuc fst) , t , f | yes p | fst , refl | yes p₁ | inj₂ y with star-acc-from-fin {n}{s}{nfa} fst f p₁
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | .(fsuc fst) , t , f | yes p | fst , refl | yes p₁ | inj₂ y | u , v , eq , inj₁ x₁ = x ∷ u , v , cong (_∷_ x) eq , inj₁ (fromExists (fst , joinand y x₁ ) )
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | .(fsuc fst) , t , f | yes p | fst , refl | yes p₁ | inj₂ y | u , v , eq , inj₂ y₁ = x ∷ [] , u ++ˢ v , cong (_∷_ x) eq , inj₁ (fromExists (fst , joinand y (lem12 p₁)))
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | .(fsuc fst) , t , f | yes p | fst , refl | no ¬p with lem6 (δ nfa (S nfa) x) (δ nfa q x) fst t
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | .(fsuc fst) , t , f | yes p | fst , refl | no ¬p | inj₁ y with star-inv-ind  {n}{s} fst f ¬p
-... | u , v , eq  , acc , _ = x ∷ u , v , cong (_∷_ x) eq , inj₂ (fromExists (fst , joinand y acc  ))
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | .(fsuc fst) , t , f | yes p | fst , refl | no ¬p | inj₂ y with star-inv-ind  {n}{s} fst f ¬p
-... | u , v , eq  , acc , _  = x ∷ u , v , cong (_∷_ x) eq , inj₁ (fromExists (fst , joinand y acc ))
-star-acc-from-fin {n} {x ∷ s} {nfa} q ac isf | w , t , f | no ¬p = ⊥-elim(¬p isf)
-
-postulate
-  star-inv : ∀{n} {s : String} {nfa : Nfa n}
-    → (starNfa nfa) ↓ s
-    → ¬ (s ≡ [])
-    → ∃[ u ] ∃[ v ](s ≡ u ++ˢ v × ¬ (u ≡ []) × nfa ↓ u ×  starNfa nfa ↓ v)
-
--- star-inv {n} {[]} {nfa} d1 ne = ⊥-elim (ne refl)
--- star-inv {n} {c ∷ s} {nfa} d1 ne with anyToExists {n} d1
--- ... | fst , snd with fst ∈? F nfa
--- star-inv {n} {c ∷ s} {nfa} d1 ne | fst , snd | yes p = {!   !}
--- star-inv {n} {c ∷ s} {nfa} d1 ne | fst , snd | no ¬p with star-inv-ind {n}{s} {nfa} (fst) (proj₂ (splitand snd)) ¬p
--- ... | u , v , eq , l , z =
---   c ∷ u , v , cong (c ∷_) eq , (λ ()) , fromExists (fst , (joinand (proj₁ (splitand snd)) l) ) , {!   !} -- z
+  → ∃[ u ] ∃[ v ](s ≡ u ++ˢ v × ¬ (u ≡ []) × nfa ↓ u ×  starNfa nfa ↓ v)
+star-inv {n} {[]} {nfa} ds ne = ⊥-elim(ne refl)
+star-inv {n} {x ∷ s} {nfa} ds ne with biglemma {_}{x}{s}{0F}{starNfa nfa} ds
+... | w , t , f with lem2 w (lem0 w (δ nfa (S nfa) x) t)
+star-inv {n} {x ∷ s} {nfa} ds ne | .(fsuc fst) , t , f | fst , refl with star-inv-inductive {n}{s}{nfa} fst f
+... | u , v , eq , acind , decind = x ∷ u , v , cong (x ∷_) eq , (λ ()) , fromExists (fst , joinand t acind) , decind
 
 star-closure-inverse : ∀{n} {a} {s : String} {nfa : Nfa n}
   → (starNfa nfa) ↓ (a ∷ s)
