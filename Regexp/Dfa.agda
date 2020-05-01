@@ -9,8 +9,6 @@ open import Data.Empty as Empty using (⊥; ⊥-elim)
 open import Data.Unit using (⊤; tt)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Nullary.Negation using (contradiction)
-open import Data.List using (List; _∷_; []; _++_; length; take; drop)
-open import Data.List.Properties using (++-assoc; ++-identityʳ; ++-cancelʳ)
 open import Data.Product using (_×_; Σ; ∃; ∃₂; Σ-syntax; ∃-syntax; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Equivalence
@@ -19,35 +17,37 @@ open Eq using (_≡_; refl; _≢_; subst; sym; trans; cong; cong₂)
 open import Data.Vec renaming (_∷_ to _∷v_; [] to []v; _++_ to _++v_) hiding (take; drop)
 open import Data.Vec.Properties using (lookup-++ˡ)
 open import VecUtil
-
-String : Set
-String = List Char
+open import String
 
 record Dfa (n : ℕ) : Set where
   field
     S : Fin n
     δ : Fin n → Char → Fin n
     isF : Fin n → Bool
+open Dfa
 
-δ̂ : ∀{n} → (Fin n → Char → Fin n) → (q : Fin n) → String → Fin n
-δ̂ δ q [] = q
-δ̂ δ q (x ∷ s) = δ̂ δ (δ q x) s
+δ̂ : ∀{n} → (dfa : Dfa n) → (q : Fin n) → String → Fin n
+δ̂ dfa q [] = q
+δ̂ dfa q (x ∷ s) = δ̂ dfa (δ dfa q x) s
 
 infix 10 _↓_
 _↓_ : ∀{n} → Dfa n → String → Set
-dfa ↓ s  = T (Dfa.isF dfa (δ̂ (Dfa.δ dfa) (Dfa.S dfa) s))
+dfa ↓ s  = T (isF dfa (δ̂ dfa (S dfa) s))
 
 _↓?_ : ∀{n} → (dfa : Dfa n) → (s : String) → Dec (dfa ↓ s)
-dfa ↓? s with Dfa.isF dfa (δ̂ (Dfa.δ dfa) (Dfa.S dfa) s)
+dfa ↓? s with isF dfa (δ̂ dfa (S dfa) s)
 ... | false = no (λ z → z)
 ... | true = yes tt
+
+--------------------------------------------------------------------------------
+-- Complement of a DFA
 
 complement : ∀{n} → Dfa n → Dfa n
 complement dfa =
   record
-    { S = Dfa.S dfa
-    ; δ = Dfa.δ dfa
-    ; isF = λ x → not (Dfa.isF dfa x)
+    { S = S dfa
+    ; δ = δ dfa
+    ; isF = λ x → not (isF dfa x)
     }
 
 not-elim : ∀{b} → T b → T (not b) → ⊥
@@ -58,95 +58,107 @@ not-elim {true} x y = y
 ¬not-elim {false} x y = y tt
 ¬not-elim {true} x y = y (x tt)
 
+complement-δ̂-≡ : ∀{n}
+  → (dfa : Dfa n)
+  → (q : Fin n)
+  → (s : String)
+  → δ̂ dfa q s ≡ δ̂ (complement dfa) q s
+complement-δ̂-≡ dfa q [] = refl
+complement-δ̂-≡ dfa q (x ∷ s) = complement-δ̂-≡ dfa (δ dfa q x) s
+
 complement-closure : ∀{s n} {dfa : Dfa n}
   → dfa ↓ s ⇔ ¬ (complement dfa ↓ s)
 complement-closure {s}{n}{dfa} = record { to = to {s}{n}{dfa} ; from = from {s}{n}{dfa} }
   where
-    to : ∀{s n} {dfa : Dfa n} → dfa ↓ s → ¬ (complement dfa ↓ s)
-    to {s} {n} {dfa} p with dfa ↓? s
-    ... | yes q = λ x → not-elim p x
-    ... | no ¬p = λ _ → ¬p p
     from : ∀{s n} {dfa : Dfa n} → ¬ (complement dfa ↓ s) → dfa ↓ s
     from {s} {n} {dfa} np with (complement dfa) ↓? s | dfa ↓? s
     ... | yes p | yes q = q
     ... | yes p | no ¬q = ⊥-elim (np p)
     ... | no ¬p | yes q = q
-    ... | no ¬p | no ¬q = ⊥-elim (¬not-elim ¬q np)
+    ... | no ¬p | no ¬q rewrite (complement-δ̂-≡ dfa (S dfa) s) = ⊥-elim(¬not-elim ¬q ¬p)
+
+    to : ∀{s n} {dfa : Dfa n} → dfa ↓ s → ¬ (complement dfa ↓ s)
+    to {s} {n} {dfa} p abs rewrite complement-δ̂-≡ dfa (S dfa) s = not-elim p abs
+
+--------------------------------------------------------------------------------
+-- Pumping Lemma
 
 infixl 6 _^_
 _^_ : String → ℕ → String
 s ^ zero = []
 s ^ (suc n) = s ++ s ^ n
 
+path : ∀{m} → Dfa m → Fin m → (s : String) → Vec (Fin m) (length s)
+path dfa q [] = []v
+path dfa q (c ∷ s) = q ∷v (path dfa (δ dfa q c) s)
+
 lemma-δ̂ : ∀{n}
   (dfa : Dfa n)
   → (s : String)
   → (t : String)
   → (q : Fin n)
-  → δ̂ (Dfa.δ dfa) q (s ++ t) ≡ δ̂ (Dfa.δ dfa) (δ̂ (Dfa.δ dfa) q s) t
+  → δ̂ dfa q (s ++ t) ≡ δ̂ dfa (δ̂ dfa q s) t
 lemma-δ̂ dfa [] t q = refl
-lemma-δ̂ dfa (c ∷ s) t q = lemma-δ̂ dfa s t (Dfa.δ dfa q c)
+lemma-δ̂ dfa (c ∷ s) t q = lemma-δ̂ dfa s t (δ dfa q c)
 
 smallPumping : ∀{n}
   → (dfa : Dfa n)
   → (s : String)
   → (q : Fin n)
-  → q ≡ δ̂ (Dfa.δ dfa) q s
-  → ∀(m : ℕ) → q ≡ δ̂ (Dfa.δ dfa) q (s ^ m)
+  → q ≡ δ̂ dfa q s
+  → ∀(m : ℕ) → q ≡ δ̂ dfa q (s ^ m)
 smallPumping dfa s q eq zero = refl
 smallPumping dfa s q eq (suc m) with smallPumping dfa s q eq m | lemma-δ̂ dfa s (s ^ m) q
-... | ind | lm2 with subst (λ x → δ̂ (Dfa.δ dfa) q (s ++ (s ^ m)) ≡ δ̂ (Dfa.δ dfa) x (s ^ m)) (sym eq) lm2
+... | ind | lm2 with subst (λ x → δ̂ dfa q (s ++ (s ^ m)) ≡ δ̂ dfa x (s ^ m)) (sym eq) lm2
 ... | conc = trans ind (sym conc)
 
 bigPumping : ∀{n} {dfa : Dfa n}
   → (s : String)
   → (t : String)
   → (u : String)
-  → let p = δ̂ (Dfa.δ dfa) (Dfa.S dfa) s in
-     p ≡ δ̂ (Dfa.δ dfa) p t
+  → let p = δ̂ dfa (S dfa) s in
+     p ≡ δ̂ dfa p t
   → dfa ↓ (s ++ t ++ u)
   → (m : ℕ)
   → dfa ↓ (s ++ t ^ m ++ u)
-bigPumping {n} {dfa} s t u eq2 dec m with smallPumping dfa t (δ̂ (Dfa.δ dfa) (Dfa.S dfa) s) eq2 m
-... | nlbl with lemma-δ̂ dfa (s ++ t) u (Dfa.S dfa)
-... | lm with lemma-δ̂ dfa s (t ^ m) (Dfa.S dfa)
-... | lm2 with lemma-δ̂ dfa s t (Dfa.S dfa)
-... | lm3 with trans nlbl (sym lm2)
-... | ok with trans eq2 (sym lm3)
-... | calm with subst (λ x → δ̂ (Dfa.δ dfa) (Dfa.S dfa) ((s ++ t) ++ u) ≡ δ̂ (Dfa.δ dfa) x u) (sym calm) lm
-... | almost with subst (λ x → δ̂ (Dfa.δ dfa) (Dfa.S dfa) ((s ++ t) ++ u) ≡ δ̂ (Dfa.δ dfa) x u) ok almost
-... | gotit with lemma-δ̂ dfa (s ++ (t ^ m)) u (Dfa.S dfa)
-... | doable with trans gotit (sym doable)
-... | notrly with subst (λ x → δ̂ (Dfa.δ dfa) (Dfa.S dfa) x ≡ δ̂ (Dfa.δ dfa) (Dfa.S dfa) ((s ++ (t ^ m)) ++ u)) (++-assoc s t u) notrly
-... | gg with subst (λ x → δ̂ (Dfa.δ dfa) (Dfa.S dfa) (s ++ t ++ u) ≡ δ̂ (Dfa.δ dfa) (Dfa.S dfa) x) (++-assoc s (t ^ m) u) gg
-... | easy = subst (λ x → T (Dfa.isF dfa x)) easy dec
-
-path : ∀{m} → Dfa m → Fin m → (s : String) → Vec (Fin m) (length s)
-path dfa q [] = []v
-path dfa q (c ∷ s) = q ∷v (path dfa (Dfa.δ dfa q c) s)
+bigPumping {n} {dfa} s t u eq acc m with smallPumping dfa t (δ̂ dfa (S dfa) s) eq m
+... | small with lemma-δ̂ dfa (s ++ t) u (S dfa) | lemma-δ̂ dfa s (t ^ m) (S dfa) | lemma-δ̂ dfa s t (S dfa)
+... | d1 | d2 | d3 rewrite trans small (sym d2) | sym (trans eq (sym d3)) with trans d1 (sym (lemma-δ̂ dfa (s ++ (t ^ m)) u (S dfa)))
+... | notrly rewrite (++-assoc s t u) | (++-assoc s (t ^ m) u) | notrly = acc
 
 take++drop : (n : ℕ) → (s : String) → s ≡ take n s ++ drop n s
 take++drop zero s = refl
 take++drop (suc n) [] = refl
 take++drop (suc n) (c ∷ s) = cong (c ∷_) (take++drop n s)
 
-lemminoTakeDrop1 : ∀{s : String} → {i j : Fin (length s)} → i <ᶠ j → s ≡ take (toℕ i) s ++ drop (toℕ i) (take (toℕ j) s) ++ drop (toℕ j) s
+lemminoTakeDrop1 : ∀{s : String} → {i j : Fin (length s)}
+  → i <ᶠ j
+  → s ≡ take (toℕ i) s ++ drop (toℕ i) (take (toℕ j) s) ++ drop (toℕ j) s
 lemminoTakeDrop1 {c ∷ s} {fzero} {fsuc j} (s≤s z≤n) = cong (c ∷_) (take++drop (toℕ j) s)
 lemminoTakeDrop1 {c ∷ s} {fsuc i} {fsuc j} (s≤s i<j) = cong (c ∷_) (lemminoTakeDrop1 {s} i<j)
 
-lemminoTakeDrop2 : ∀{s : String} → {i j : Fin (length s)} → i <ᶠ j → drop (toℕ i) (take (toℕ j) s) ≢ []
+lemminoTakeDrop2 : ∀{s : String} → {i j : Fin (length s)}
+  → i <ᶠ j
+  → drop (toℕ i) (take (toℕ j) s) ≢ []
 lemminoTakeDrop2 {c ∷ s} {fzero} {fsuc j} i<j = λ ()
 lemminoTakeDrop2 {c ∷ s} {fsuc i} {fsuc j} (s≤s i<j) eq = ⊥-elim (lemminoTakeDrop2 {s} i<j eq)
 
-lemminoTakeDrop3 : ∀{s : String} → {i j : Fin (length s)} → i <ᶠ j → take (toℕ i) s ++ drop (toℕ i) (take (toℕ j) s) ≡ take (toℕ j) s
+lemminoTakeDrop3 : ∀{s : String} → {i j : Fin (length s)}
+  → i <ᶠ j
+  → take (toℕ i) s ++ drop (toℕ i) (take (toℕ j) s) ≡ take (toℕ j) s
 lemminoTakeDrop3 {c ∷ s} {fzero} {fsuc j} i<j = refl
 lemminoTakeDrop3 {c ∷ s} {fsuc i} {fsuc j} (s≤s i<j) = cong (c ∷_) (lemminoTakeDrop3 {s} i<j)
 
-lemminoTakeDrop5 : (s : String) → (i : Fin (length s)) → length (take (toℕ i) s) ≡ toℕ i
+lemminoTakeDrop5 : (s : String)
+  → (i : Fin (length s))
+  → length (take (toℕ i) s) ≡ toℕ i
 lemminoTakeDrop5 (x ∷ s) Data.Fin.0F = refl
 lemminoTakeDrop5 (x ∷ s) (fsuc i) = cong suc (lemminoTakeDrop5 s i)
 
-lemminoTakeDrop4 : ∀{s : String} → {i j : Fin (length s)} → i <ᶠ j → length (take (toℕ i) s ++ drop (toℕ i) (take (toℕ j) s)) ≡ toℕ j
+lemminoTakeDrop4 : ∀{s : String}
+  → {i j : Fin (length s)}
+  → i <ᶠ j
+  → length (take (toℕ i) s ++ drop (toℕ i) (take (toℕ j) s)) ≡ toℕ j
 lemminoTakeDrop4 {x ∷ s} {fzero} {fsuc j} i<j rewrite sym (lemminoTakeDrop3 {x ∷ s} i<j) = cong suc (lemminoTakeDrop5 s j)
 lemminoTakeDrop4 {x ∷ s} {fsuc i} {fsuc j} (s≤s i<j) = cong suc (lemminoTakeDrop4 {s} i<j)
 
@@ -218,9 +230,9 @@ lemmaPath : ∀{m}
   → (s : String)
   → (i : Fin (length s))
   → (q : Fin m)
-  → (path dfa q s ! i) ≡ δ̂ (Dfa.δ dfa) q (take (toℕ i) s)
+  → (path dfa q s ! i) ≡ δ̂ dfa q (take (toℕ i) s)
 lemmaPath dfa (c ∷ s) fzero q = refl
-lemmaPath dfa (c ∷ s) (fsuc i) q = lemmaPath dfa s i (Dfa.δ dfa q c)
+lemmaPath dfa (c ∷ s) (fsuc i) q = lemmaPath dfa s i (δ dfa q c)
 
 pumingLemmaBase : ∀{n : ℕ}
   → (dfa : Dfa n)
@@ -233,13 +245,13 @@ pumingLemmaBase : ∀{n : ℕ}
       × length (x ++ y) ≤ n
       × ∀(k : ℕ) → dfa ↓ (x ++ y ^ k ++ z)
     )
-pumingLemmaBase {n} dfa w dec gt with piccionaia (path dfa (Dfa.S dfa) w) gt
+pumingLemmaBase {n} dfa w dec gt with piccionaia (path dfa (S dfa) w) gt
 ... | i , j , i<j , lt , eq  with tripartition w i j i<j
-... | x , y , z , eq2 , y≢[] , bydef1 , bydef2 , lenp with lemmaPath dfa w i (Dfa.S dfa) | lemmaPath dfa w j (Dfa.S dfa)
-... | lp1 | lp2 with subst (λ v → (path dfa (Dfa.S dfa) w) ! i ≡ δ̂ (Dfa.δ dfa) (Dfa.S dfa) v) (sym bydef1) lp1
-... | u1 with subst (λ v → (path dfa (Dfa.S dfa) w) ! j ≡ δ̂ (Dfa.δ dfa) (Dfa.S dfa) v) (sym bydef2) lp2
-... | u2 with trans u2 (lemma-δ̂ dfa x y (Dfa.S dfa))
-... | u3 with subst (_≡ δ̂ (Dfa.δ dfa) (δ̂ (Dfa.δ dfa) (Dfa.S dfa) x) y) (sym eq) u3
+... | x , y , z , eq2 , y≢[] , bydef1 , bydef2 , lenp with lemmaPath dfa w i (S dfa) | lemmaPath dfa w j (S dfa)
+... | lp1 | lp2 with subst (λ v → (path dfa (S dfa) w) ! i ≡ δ̂ dfa (S dfa) v) (sym bydef1) lp1
+... | u1 with subst (λ v → (path dfa (S dfa) w) ! j ≡ δ̂ dfa (S dfa) v) (sym bydef2) lp2
+... | u2 with trans u2 (lemma-δ̂ dfa x y (S dfa))
+... | u3 with subst (_≡ δ̂ dfa (δ̂ dfa (S dfa) x) y) (sym eq) u3
 ... | u4 = x , y , z , ( eq2 , y≢[] , subst (_≤ n) (sym lenp) lt , bigPumping {n}{dfa} x y z (trans (sym u1) u4) (subst (dfa ↓_) eq2 dec) )
 
 pumpingLemma : {m : ℕ}
@@ -263,23 +275,23 @@ pumpingLemma {m} dfa = m , pumingLemmaBase dfa
 -- The state 3F is the error state
 
 exampleDfa : Dfa 4
-exampleDfa = record { S = 0F ; δ = δ ; isF = isF }
+exampleDfa = record { S = 0F ; δ = delta ; isF = only0F }
   where
-    δ : Fin 4 → Char → Fin 4
-    δ 0F '0' = 0F
-    δ 0F '1' = 1F
+    delta : Fin 4 → Char → Fin 4
+    delta 0F '0' = 0F
+    delta 0F '1' = 1F
 
-    δ 1F '0' = 2F
-    δ 1F '1' = 0F
+    delta 1F '0' = 2F
+    delta 1F '1' = 0F
 
-    δ 2F '0' = 1F
-    δ 2F '1' = 2F
+    delta 2F '0' = 1F
+    delta 2F '1' = 2F
 
-    δ _ _ = 3F
+    delta _ _ = 3F
 
-    isF : Fin 4 → Bool
-    isF 0F = true
-    isF _ = false
+    only0F : Fin 4 → Bool
+    only0F 0F = true
+    only0F _ = false
 
 str1 = '1' ∷ '0' ∷ '1' ∷ '0' ∷ '1' ∷ []
 
@@ -353,7 +365,7 @@ dfa-states>0 {suc n} dfa = s≤s z≤n
 lemmaℕ≤ : (m : ℕ) → 1 ≤ m → 1 + m ≤ m + m
 lemmaℕ≤ m lq = +-monoˡ-≤ m lq
 
-length-++ : ∀ {A : Set} (xs ys : List A) → length xs + length ys ≡ length (xs ++ ys)
+length-++ : (xs ys : String) → length xs + length ys ≡ length (xs ++ ys)
 length-++ [] ys = refl
 length-++ (x ∷ xs) ys = cong suc (length-++ xs ys)
 
@@ -392,9 +404,9 @@ xyz-to-power-base : ∀{n m x y z}
                         × z ≡ (I ^ q) ++ (O ^ m))
 xyz-to-power-base {0F} {0F} {[]} {[]} {[]} o t = zero , zero , zero , refl , refl , refl
 xyz-to-power-base {0F} {suc m} {[]} {[]} {x ∷ z} e t = zero , zero , zero , refl , refl , sym e
-xyz-to-power-base {suc n} {0F} {x} {y} {z} e t rewrite ++-identityʳ (I ^ n) with char-pow-++ {'1'} {suc n} {x} {y ++ z} e
+xyz-to-power-base {suc n} {0F} {x} {y} {z} e t rewrite ++-idʳ (I ^ n) with char-pow-++ {'1'} {suc n} {x} {y ++ z} e
 ... | l , m , eq1 , eq2 , eq3 with char-pow-++ {'1'} {m} {y} (sym eq2)
-... | l2 , m2 , eq4 , eq5 , eq6 rewrite sym (++-identityʳ (I ^ m2)) = l , l2 , m2 , eq1 , eq4 , eq5
+... | l2 , m2 , eq4 , eq5 , eq6 rewrite sym (++-idʳ (I ^ m2)) = l , l2 , m2 , eq1 , eq4 , eq5
 xyz-to-power-base {suc n} {suc m} {[]} {[]} {x ∷ z} e t with listlem0 e
 xyz-to-power-base {suc n} {suc m} {[]} {[]} {.'1' ∷ z} e les | refl with xyz-to-power-base {n} {suc m} {[]} {[]} {z} (listlem1 e) z≤n
 ... | l , p , q , eq1 , eq2 , eq3 = l , p , suc q , eq1 , eq2 , cong ('1' ∷_) eq3
