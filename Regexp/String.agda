@@ -1,15 +1,14 @@
-module String where
 open import Data.Nat using (ℕ; zero; suc)
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl)
 open Eq.≡-Reasoning
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; _≡⟨_⟩_; _∎)
-open import Data.Char as Char
+module String (Σ : Set) where
 
 infixr 5 _∷_
 data String : Set where
   [] : String
-  _∷_ : Char → String → String
+  _∷_ : Σ → String → String
 
 
 infixr 5 _++_
@@ -29,7 +28,7 @@ _++_ : String → String → String
 ++-idˡ [] = refl
 ++-idˡ (x ∷ x₁) = refl
 
-foldl : ∀ {B : Set} → (Char → B → B) → B →  String → B
+foldl : ∀ {B : Set} → (Σ → B → B) → B →  String → B
 foldl f b [] = b
 foldl f b (x ∷ xs) = foldl f (f x b) xs
 

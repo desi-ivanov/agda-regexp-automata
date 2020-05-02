@@ -1,6 +1,4 @@
-module RegexpNfa where
 open import Equivalence
-open import Data.Char as Char using (Char)
 open import Data.Nat as ℕ using (ℕ; zero; suc; _<′_)
 open import Data.Nat.Properties
 open import Data.Fin
@@ -14,16 +12,18 @@ open import Data.Bool using (Bool; false; true; not; T)
 open import Data.Empty as Empty using (⊥; ⊥-elim)
 open import Relation.Nullary.Negation using (contradiction)
 open import Data.Unit using (⊤; tt)
-open import String using (String; _∷_; []; length) renaming (_++_ to _++ˢ_)
-open import Data.Product using (_×_; Σ; ∃; ∃₂; Σ-syntax; ∃-syntax; _,_; proj₁; proj₂)
+open import Data.Product using (_×_; ∃; ∃₂; Σ-syntax; ∃-syntax; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import Regexp
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; _≢_; subst; sym; trans; cong)
 open import VecUtil
-open import Nfa hiding (Acc)
 open import Induction.Nat
 open import Induction.WellFounded
+
+module RegexpNfa (Σ : Set) (_≟_ : (a : Σ) → (b : Σ) → Dec (a ≡ b)) where
+open import String Σ using (String; _∷_; []; length) renaming (_++_ to _++ˢ_)
+open import Nfa Σ hiding (Acc)
+open import Regexp Σ
 
 nfa-∅ : Nfa 1
 nfa-∅ = record { S = 0F ; δ = λ _ _ → FullSet ; F = ∅ }
@@ -31,11 +31,11 @@ nfa-∅ = record { S = 0F ; δ = λ _ _ → FullSet ; F = ∅ }
 nfa-ε : Nfa 2
 nfa-ε = record { S = 0F ; δ = λ _ _ → ⁅ 1F ⁆ ; F = ⁅ 0F ⁆ }
 
-nfa-c : (c : Char) → Nfa 3
+nfa-c : (c : Σ) → Nfa 3
 nfa-c c = record { S = 0F ; δ = δ ; F = ⁅ 1F ⁆ }
   where
-    δ : Fin 3 → Char → Subset 3
-    δ 0F k with k Char.≟ c
+    δ : Fin 3 → Σ → Subset 3
+    δ 0F k with k ≟ c
     ... | yes p = ⁅ 1F ⁆
     ... | no ¬p = ⁅ 2F ⁆
     δ _ _ = ⁅ 2F ⁆
@@ -60,8 +60,8 @@ nfa-ε-only-ε3 s neq with nfa-ε-only-ε1 s
 nfa-ε-only-ε3 s neq | inj₁ x = λ _ → neq x
 nfa-ε-only-ε3 s neq | inj₂ y = y
 
-nfa-c-correct-to : (c : Char) → nfa-c c ↓ (c ∷ [])
-nfa-c-correct-to c with c Char.≟ c
+nfa-c-correct-to : (c : Σ) → nfa-c c ↓ (c ∷ [])
+nfa-c-correct-to c with c ≟ c
 nfa-c-correct-to c | yes p = tt
 nfa-c-correct-to c | no ¬p = ¬p refl
 
@@ -69,9 +69,9 @@ nfa-c-correct-from2 : ∀{c s} → ¬ (T (accepts (nfa-c c) 2F s ))
 nfa-c-correct-from2 {c} {x ∷ s} d = ⊥-elim (nfa-c-correct-from2 {c} {s} (extractOrL d))
 
 nfa-c-correct-from : ∀{c}{s} → nfa-c c ↓ s → s ≡ (c ∷ [])
-nfa-c-correct-from {c} {x ∷ []} d with x Char.≟ c
+nfa-c-correct-from {c} {x ∷ []} d with x ≟ c
 nfa-c-correct-from {c} {x ∷ []} tt | yes p = cong (_∷ []) p
-nfa-c-correct-from {c} {x ∷ x₁ ∷ s} d with x Char.≟ c
+nfa-c-correct-from {c} {x ∷ x₁ ∷ s} d with x ≟ c
 nfa-c-correct-from {c} {x ∷ x₁ ∷ s} d | yes p = ⊥-elim(nfa-c-correct-from2 {c} {x ∷ x₁ ∷ s} d)
 nfa-c-correct-from {c} {x ∷ x₁ ∷ s} d | no ¬p = ⊥-elim(nfa-c-correct-from2 {c} {x ∷ x₁ ∷ s} d)
 

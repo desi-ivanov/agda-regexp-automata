@@ -1,13 +1,12 @@
-module Regexp where
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; cong; sym; subst; trans)
 open Eq.≡-Reasoning
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; _≡⟨_⟩_; _∎)
 open import Relation.Nullary using (¬_)
-open import Data.Char as Char
 open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import String using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ)
 open import Equivalence
+module Regexp (Σ : Set) where
+open import String Σ using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ)
 
 ε = []
 
@@ -17,7 +16,7 @@ infixl 8 _*
 data RegExp : Set where
   ⟨⟩ : RegExp
   ⟨ε⟩ : RegExp
-  Atom : (c : Char) → RegExp
+  Atom : (c : Σ) → RegExp
   _+_ : RegExp → RegExp → RegExp
   _·_ : RegExp → RegExp → RegExp
   _* : RegExp → RegExp
@@ -27,7 +26,7 @@ data _∈_ : String → RegExp → Set where
   in-ε :
     ε ∈( ⟨ε⟩ )
   in-c :
-    (c : Char)
+    (c : Σ)
     → (c ∷ []) ∈( Atom c )
   in-· :
     ∀ {s t} {E F}

@@ -1,18 +1,16 @@
-module Brzozowski where
-open import Regexp
-open import Equivalence
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; cong; sym; subst; trans)
 open Eq.≡-Reasoning
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; _≡⟨_⟩_; _∎)
-
-open import Data.Char as Char
-open import String using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ; foldl)
-
 open import Relation.Nullary using (Dec; ¬_; yes; no)
 open import Data.Product using (_×_; Σ; ∃; Σ-syntax; ∃-syntax; _,_)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
+open import Equivalence
+
+module Brzozowski (Σ : Set) (_≟_ : (a : Σ) → (b : Σ) → Dec (a ≡ b)) where
+open import Regexp Σ
+open import String Σ using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ; foldl)
 
 data Nullable : RegExp → Set where
   null⟨ε⟩ : Nullable ⟨ε⟩
@@ -52,7 +50,7 @@ isNullable (r · s) | no ¬p | yes q = no λ x → ⊥-elim-product (inj₁ ¬p)
 isNullable (r · s) | no ¬p | no ¬q = no λ x → ⊥-elim-product (inj₁ ¬p) (seqnullable x)
 isNullable (r *) = yes null*
 
-der : RegExp → Char → RegExp
+der : RegExp → Σ → RegExp
 der ⟨⟩ a = ⟨⟩
 der ⟨ε⟩ a = ⟨⟩
 der (Atom b) a with b ≟ a

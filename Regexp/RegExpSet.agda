@@ -1,14 +1,14 @@
-module RegExpSet where
 open import Data.List
-open import Regexp using (RegExp)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
-open import Data.Char as Char using ()
 open import Data.List.Membership.Propositional
 open import Data.List.Relation.Unary.Any
 open import Data.List.Relation.Unary.All
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; _≢_; subst; sym; trans; cong; cong₂)
 open import Data.Empty using (⊥; ⊥-elim)
+
+module RegExpSet (Σ : Set) (_≟Σ_ : (a : Σ) → (b : Σ) → Dec (a ≡ b)) where
+open import Regexp Σ using (RegExp)
 
 RegExpSet = List RegExp
 
@@ -31,7 +31,7 @@ _≟_ : (E F : RegExp) → Dec (E ≡ F)
 ⟨ε⟩ ≟ (F *) = no (λ ())
 Atom c ≟ ⟨⟩ = no (λ ())
 Atom c ≟ ⟨ε⟩ = no (λ ())
-Atom c ≟ Atom c₁ with Char._≟_ c c₁
+Atom c ≟ Atom c₁ with _≟Σ_ c c₁
 (Atom c ≟ Atom .c) | yes refl = yes refl
 (Atom c ≟ Atom c₁) | no ¬p = no λ{ refl → ¬p refl }
 Atom c ≟ (F + F₁) = no (λ ())

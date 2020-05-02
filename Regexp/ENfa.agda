@@ -1,5 +1,3 @@
-module ENfa where
-open import Data.Char using (Char)
 open import Data.Nat using (ℕ; zero; suc)
 open import Data.Fin
   using (Fin)
@@ -8,14 +6,16 @@ open import Data.Fin.Subset as Subset
   using (Subset; ⁅_⁆; _∪_; _∩_; Nonempty)
   renaming (⊥ to ∅)
 open import Data.Bool using (false; true)
-open import String using (String; _∷_; [])
 open import Data.Vec using (toList)
 open import VecUtil
+
+module ENfa (Σ : Set) where
+open import String Σ using (String; _∷_; [])
 
 record eNfa (n : ℕ) : Set where
   field
     S : Fin n
-    δ : Fin n → Char → Subset n
+    δ : Fin n → Σ → Subset n
     εδ : Fin n → Subset n
     F : Subset n
 
@@ -37,7 +37,7 @@ eclose {n} enfa qs = ecloseQS enfa qs ∅ n
 δ̂ {n} enfa qs [] = eclose enfa qs
 δ̂ {n} enfa qs (c ∷ s) = δ̂ enfa (onestep qs c) s
   where
-    onestep : (Subset n) → Char → (Subset n)
+    onestep : (Subset n) → Σ → (Subset n)
     onestep qs c = U (mapS (eclose enfa qs) (λ q → eNfa.δ enfa q c) ∅)
 
 

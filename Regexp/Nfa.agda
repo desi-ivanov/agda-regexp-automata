@@ -1,5 +1,4 @@
-module Nfa where
-open import Data.Char as Char using (Char)
+module Nfa (Σ : Set) where
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; _<_; _≥_; _<?_; _≤?_; s≤s; z≤n; _∸_)
 open import Data.Fin
   using (Fin; inject+; 0F; raise)
@@ -11,12 +10,12 @@ open import Data.Fin.Subset.Properties using (x∈p∪q⁺; x∈p∪q⁻)
 open import Data.Fin.Properties using (_≟_)
 open import Data.Bool using (Bool; false; true; _∨_; _∧_; T; not)
 open import Data.Bool.Properties using (T?)
-open import Data.Product using (_×_; Σ; ∃; Σ-syntax; ∃-syntax; _,_; proj₁; proj₂)
+open import Data.Product using (_×_; ∃; Σ-syntax; ∃-syntax; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Unit using (⊤; tt)
 open import Data.Empty using (⊥-elim)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
-open import String using (String; _∷_; []; ++-idˡ; ++-idʳ; take; drop; ++-assoc; length) renaming (_++_ to _++ˢ_)
+open import String Σ using (String; _∷_; []; ++-idˡ; ++-idʳ; take; drop; ++-assoc; length) renaming (_++_ to _++ˢ_)
 open import Data.Vec renaming (_∷_ to _∷v_; [] to []v) hiding (concat; splitAt; take; drop)
 open import Data.Vec.Properties
 open import Data.Vec.Relation.Unary.Any using (index) renaming (any to any?)
@@ -29,7 +28,7 @@ open import Relation.Nullary.Negation using (contradiction)
 record Nfa (n : ℕ) : Set where
   field
     S : Fin n
-    δ : Fin n → Char → Subset n
+    δ : Fin n → Σ → Subset n
     F : Subset n
 
 any : ∀{n} → (P : Fin n → Bool) → Bool
@@ -54,7 +53,7 @@ nfa ↓? s with accepts nfa (Nfa.S nfa) s
 δ̂ {n} nfa qs [] = qs
 δ̂ {n} nfa qs (x ∷ s) = δ̂ nfa (onestep qs x) s
   where
-    onestep : (Subset n) → Char → (Subset n)
+    onestep : (Subset n) → Σ → (Subset n)
     onestep qs c = U (mapS qs (λ q → Nfa.δ nfa q c) ∅)
 infix 10 _↓′_
 _↓′_ : ∀{n} → Nfa n → String → Set
@@ -84,7 +83,7 @@ concatNfa {n} {m} nfaL nfaR =
     ; F = F
     }
   where
-    δ : Fin (1 + n + m) → Char → Subset (1 + n + m)
+    δ : Fin (1 + n + m) → Σ → Subset (1 + n + m)
     δ q c with splitAt 1 q
     δ q c | inj₁ z with Nfa.S nfaL ∈? Nfa.F nfaL
     δ q c | inj₁ z | yes isf           = ∅ {1} ++ (Nfa.δ nfaL (Nfa.S nfaL) c) ++ (Nfa.δ nfaR (Nfa.S nfaR) c)
@@ -110,7 +109,7 @@ unionNfa {n} {m} nfaL nfaR =
     ; F = sf ++ (Nfa.F nfaL) ++ (Nfa.F nfaR)
     }
   where
-    δ : Fin (1 + n + m) → Char → Subset (1 + n + m)
+    δ : Fin (1 + n + m) → Σ → Subset (1 + n + m)
     δ q c  with splitAt 1 q
     δ q c | inj₁ z          = ∅ {1} ++ (Nfa.δ nfaL (Nfa.S nfaL) c) ++ (Nfa.δ nfaR (Nfa.S nfaR) c)
     δ q c | inj₂ f with splitAt n f
@@ -130,7 +129,7 @@ starNfa {n} nfa =
     ; F = ⁅ fzero ⁆ ++ Nfa.F nfa
     }
   where
-    δ : Fin (1 + n) → Char → Subset (1 + n)
+    δ : Fin (1 + n) → Σ → Subset (1 + n)
     δ q c with splitAt 1 q
     δ q c | inj₁ z = ∅ ++ (Nfa.δ nfa (Nfa.S nfa) c)
     δ q c | inj₂ p with p ∈? Nfa.F nfa

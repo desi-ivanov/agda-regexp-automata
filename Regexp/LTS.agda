@@ -1,13 +1,8 @@
-module LTS where
-open import Regexp
 open import Equivalence
-open import Brzozowski using (isNullable; Nullable; ε-seq; split-seq; split-*)
-open import Data.Char as Char
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; cong; sym; subst; trans)
 open Eq.≡-Reasoning
 open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; _≡⟨_⟩_; _∎)
-open import String using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ; foldl)
 open import Relation.Nullary using (Dec; ¬_; yes; no)
 open import Relation.Nullary.Negation using (contradiction)
 open import Data.Nat using (_≤_)
@@ -16,16 +11,21 @@ open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Nat as ℕ using (ℕ; zero)
 open import Data.Fin using (Fin; 0F; 1F; raise; inject+) renaming (suc to fsuc; zero to fzero)
-open import Nfa using (splitAt; splitAt-inject+; splitAt-raise)
 open import Data.List.Membership.Propositional renaming (_∈_ to _∈ˡ_)
 open import Data.List.Relation.Unary.Any as Any using (Any; any)
 open import Data.List.Relation.Unary.All as All using (All)
-open import RegExpSet
 open import Data.List using (List; []; _∷_; [_]; map; length)
 
+module LTS (Σ : Set) (_≟_ : (a : Σ) → (b : Σ) → Dec (a ≡ b)) where
+open import Regexp Σ
+open import String Σ using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ; foldl)
+open import Brzozowski Σ _≟_
+  using (isNullable; Nullable; ε-seq; split-seq; split-*)
+  renaming (theorem1 to BrzozowskiT1)
+open import RegExpSet Σ _≟_
 
-data LTS : RegExp → Char → RegExp → Set where
-  LTS1 : (a : Char) → LTS (Atom a) a ⟨ε⟩
+data LTS : RegExp → Σ → RegExp → Set where
+  LTS1 : (a : Σ) → LTS (Atom a) a ⟨ε⟩
   LTS2 : ∀{a E F E'}
     → LTS E a E'
     → LTS (E + F) a E'
@@ -49,7 +49,7 @@ data LTSw : RegExp → String → RegExp → Set where
 
 open Nullable
 
-lemma4 : ∀{a : Char}{w : String}{E : RegExp}
+lemma4 : ∀{a : Σ}{w : String}{E : RegExp}
   → ∃[ E' ] (LTS E a E' × w ∈ E') ⇔ (a ∷ w) ∈ E
 lemma4 = record { to = to ; from = from }
   where
@@ -65,7 +65,7 @@ lemma4 = record { to = to ; from = from }
     to {a} {x ∷ w} {E · E₁} (E' , (LTS4 l , r)) with split-seq r
     to {a} {x ∷ .(d ++ e)} {E · E₁} (E' , (LTS4 {_}{_}{_}{E''} l , r)) | inj₁ (d , e , refl , g , h) = in-· (to (E'' , l , g)) h
     to {a} {x ∷ w} {E · E₁} (E' , (LTS4 {_}{_}{_}{E''} l , r)) | inj₂ (fst , snd) = in-· (to (E'' , l , fst)) snd
-    to {a} {w} {E · E₁} (E' , (LTS5 {_}{_}{_}{E''} n l , r)) = in-· (_⇔_.from Brzozowski.theorem1 n) (to (E' , l , r))
+    to {a} {w} {E · E₁} (E' , (LTS5 {_}{_}{_}{E''} n l , r)) = in-· (_⇔_.from BrzozowskiT1 n) (to (E' , l , r))
 
     to {a} {[]} {E *} (E' , (LTS6 l , r)) with ε-seq r
     to {a} {[]} {E *} (E' , (LTS6 {_}{_}{E''} l , r)) | fst , snd = in-*2 (to (E'' , l , fst)) snd
@@ -86,7 +86,7 @@ lemma4 = record { to = to ; from = from }
     from {a} {_} {E · E₁} d | inj₁ (c , e , refl , g , h) with from g
     from {a} {_} {E · E₁} d | inj₁ (c , e , refl , g , h) | fst , snd , trd = fst · E₁ , LTS4 snd , in-· trd h
     from {a} {w} {E · E₁} d | inj₂ (c , e) with from e
-    ... | fst , snd , trd = fst , LTS5 (_⇔_.to Brzozowski.theorem1 c) snd , trd
+    ... | fst , snd , trd = fst , LTS5 (_⇔_.to BrzozowskiT1 c) snd , trd
 
     from {a} {w} {E *} d with split-* d λ ()
     from {a} {w} {E *} d | [] , e , f , g , h , i = ⊥-elim (f refl)
@@ -101,13 +101,13 @@ theorem1 : ∀{E : RegExp} {w : String}
 theorem1 = record { to = to ; from = from }
   where
     to : ∀{w} {E} → w ∈ E → ∃[ E' ] (LTSw E w E' × Nullable E')
-    to {[]} {E} d = E , LTSw[] E , (_⇔_.to Brzozowski.theorem1 d)
+    to {[]} {E} d = E , LTSw[] E , (_⇔_.to BrzozowskiT1 d)
     to {x ∷ w} {E} d with _⇔_.from (lemma4 {x}{w}{E}) d
     ... | _ , snd , trd with to trd
     ... | a , b , c  = a , LTSw:: snd b , c
 
     from : ∀{w} {E} → ∃[ E' ] (LTSw E w E' × Nullable E') → w ∈ (E)
-    from {[]} {.E'} (E' , LTSw[] .E' , nl) = _⇔_.from Brzozowski.theorem1 nl
+    from {[]} {.E'} (E' , LTSw[] .E' , nl) = _⇔_.from BrzozowskiT1 nl
     from {x ∷ w} {E} (E' , LTSw:: {_}{F} dl dr , nl) = _⇔_.to (lemma4 {x}{w}{E }) (F , dl , (from (E' , dr ,  nl)))
 
 

@@ -13,19 +13,15 @@ open Eq.≡-Reasoning
 !-syntax = lookup
 syntax !-syntax v i = v ! i
 
-build : {n : ℕ}{A : Set} → (Fin n → A) → Vec A n
-build {zero } f = []
-build {suc _} f = f fzero ∷ build (λ x → f (fsuc x))
-
 ifPresentOrElse : ∀{m} {A : Set} → Fin m → Subset m → (B : Fin m → A) → A → A
 ifPresentOrElse i s f z with s ! i
 ... | false = z
 ... | true = f i
 
 mapS : {n : ℕ} {A : Set} → Subset n → (B : Fin n → A) → A → Vec A n
-mapS ss f z = build λ i → ifPresentOrElse i ss f z
+mapS ss f z = tabulate λ i → ifPresentOrElse i ss f z
 
-U : ∀ {n} → Vec (Subset n) n → Subset n
+U : ∀ {m}{n} → Vec (Subset n) m → Subset n
 U {n} = foldr _ _∪_ ∅
 
 v[i]=v!i : ∀{n} {A : Set}
