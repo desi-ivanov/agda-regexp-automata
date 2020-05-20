@@ -14,71 +14,63 @@ import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; _≢_; subst; sym; trans; cong; cong₂)
 open import Data.Vec renaming (_∷_ to _∷v_; [] to []v; _++_ to _++v_) hiding (take; drop)
 open import Data.Vec.Properties using (lookup-++ˡ)
+open import Data.Fin.Subset as Subset using (Subset; ∁)
 open import VecUtil
 
 module Dfa (Σ : Set) where
 open import String Σ
 
+ε = []
+
 record Dfa (n : ℕ) : Set where
   field
     S : Fin n
     δ : Fin n → Σ → Fin n
-    isF : Fin n → Bool
+    F : Subset n
 open Dfa
 
-δ̂ : ∀{n} → (dfa : Dfa n) → (q : Fin n) → String → Fin n
-δ̂ dfa q [] = q
-δ̂ dfa q (x ∷ s) = δ̂ dfa (δ dfa q x) s
+δ^ : ∀{n} → (dfa : Dfa n) → (q : Fin n) → String → Fin n
+δ^ dfa q [] = q
+δ^ dfa q (x ∷ s) = δ^ dfa (δ dfa q x) s
 
 infix 10 _↓_
 _↓_ : ∀{n} → Dfa n → String → Set
-dfa ↓ s  = T (isF dfa (δ̂ dfa (S dfa) s))
+dfa ↓ s  = δ^ dfa (S dfa) s ∈ F dfa
 
 _↓?_ : ∀{n} → (dfa : Dfa n) → (s : String) → Dec (dfa ↓ s)
-dfa ↓? s with isF dfa (δ̂ dfa (S dfa) s)
-... | false = no (λ z → z)
-... | true = yes tt
+dfa ↓? s = δ^ dfa (S dfa) s ∈? F dfa
 
 --------------------------------------------------------------------------------
 -- Complement of a DFA
 
-complement : ∀{n} → Dfa n → Dfa n
-complement dfa =
+∁dfa : ∀{n} → Dfa n → Dfa n
+∁dfa dfa =
   record
     { S = S dfa
     ; δ = δ dfa
-    ; isF = λ x → not (isF dfa x)
+    ; F = ∁ (F dfa)
     }
 
-not-elim : ∀{b} → T b → T (not b) → ⊥
-not-elim {false} x y = x
-not-elim {true} x y = y
+∁dfa-same-δ^ : ∀{n} → (dfa : Dfa n) (q : Fin n) (s : String)
+  → δ^ (∁dfa dfa) q s ≡ δ^ dfa q s
+∁dfa-same-δ^ dfa q [] = refl
+∁dfa-same-δ^ dfa q (x ∷ s) = ∁dfa-same-δ^ dfa (δ dfa q x) s
 
-¬not-elim : ∀{b} → ¬ T b → ¬ T (not b) → ⊥
-¬not-elim {false} x y = y tt
-¬not-elim {true} x y = y (x tt)
+x∈p⇒x∉∁p : ∀ {n x} → (p : Subset n) → x ∈ p → x ∉ ∁ p
+x∈p⇒x∉∁p {_} {0F} (false ∷v p) a b = a
+x∈p⇒x∉∁p {_} {0F} (true ∷v p) a b = b
+x∈p⇒x∉∁p {_} {fsuc x} (_ ∷v p) a b = x∈p⇒x∉∁p {_}{x} p a b
 
-complement-δ̂-≡ : ∀{n}
-  → (dfa : Dfa n)
-  → (q : Fin n)
-  → (s : String)
-  → δ̂ dfa q s ≡ δ̂ (complement dfa) q s
-complement-δ̂-≡ dfa q [] = refl
-complement-δ̂-≡ dfa q (x ∷ s) = complement-δ̂-≡ dfa (δ dfa q x) s
+x∉∁p⇒x∈p : ∀ {n x} → (p : Subset n) → x ∉ ∁ p → x ∈ p
+x∉∁p⇒x∈p {_} {0F} (false ∷v p) ne = ne tt
+x∉∁p⇒x∈p {_} {0F} (true ∷v p) ne = tt
+x∉∁p⇒x∈p {_} {fsuc x} (_ ∷v p) ne = x∉∁p⇒x∈p {_}{x} p ne
 
-complement-closure : ∀{s n} {dfa : Dfa n}
-  → dfa ↓ s ⇔ ¬ (complement dfa ↓ s)
-complement-closure {s}{n}{dfa} = record { to = to {s}{n}{dfa} ; from = from {s}{n}{dfa} }
-  where
-    from : ∀{s n} {dfa : Dfa n} → ¬ (complement dfa ↓ s) → dfa ↓ s
-    from {s} {n} {dfa} np with (complement dfa) ↓? s | dfa ↓? s
-    ... | yes p | yes q = q
-    ... | yes p | no ¬q = ⊥-elim (np p)
-    ... | no ¬p | yes q = q
-    ... | no ¬p | no ¬q rewrite (complement-δ̂-≡ dfa (S dfa) s) = ⊥-elim(¬not-elim ¬q ¬p)
 
-    to : ∀{s n} {dfa : Dfa n} → dfa ↓ s → ¬ (complement dfa ↓ s)
-    to {s} {n} {dfa} p abs rewrite complement-δ̂-≡ dfa (S dfa) s = not-elim p abs
+∁dfa-correct : ∀{s n} {dfa : Dfa n}
+  → (dfa ↓ s ⇔ ¬ (∁dfa dfa ↓ s))
+∁dfa-correct {s}{n}{dfa} rewrite ∁dfa-same-δ^ dfa (S dfa) s =
+  (x∈p⇒x∉∁p (F dfa)) IFF (x∉∁p⇒x∈p (F dfa))
 
 --------------------------------------------------------------------------------
 -- Pumping Lemma
@@ -92,39 +84,55 @@ path : ∀{m} → Dfa m → Fin m → (s : String) → Vec (Fin m) (length s)
 path dfa q [] = []v
 path dfa q (c ∷ s) = q ∷v (path dfa (δ dfa q c) s)
 
-lemma-δ̂ : ∀{n}
+lemmaPath : ∀{m}
+  → (dfa : Dfa m)
+  → (s : String)
+  → (i : Fin (length s))
+  → (q : Fin m)
+  → path dfa q s ! i ≡ δ^ dfa q (take (toℕ i) s)
+lemmaPath dfa (c ∷ s) fzero q = refl
+lemmaPath dfa (c ∷ s) (fsuc i) q = lemmaPath dfa s i (δ dfa q c)
+
+lemma-δ^ : ∀{n}
   (dfa : Dfa n)
   → (s : String)
   → (t : String)
   → (q : Fin n)
-  → δ̂ dfa q (s ++ t) ≡ δ̂ dfa (δ̂ dfa q s) t
-lemma-δ̂ dfa [] t q = refl
-lemma-δ̂ dfa (c ∷ s) t q = lemma-δ̂ dfa s t (δ dfa q c)
+  → δ^ dfa q (s ++ t) ≡ δ^ dfa (δ^ dfa q s) t
+lemma-δ^ dfa [] t q = refl
+lemma-δ^ dfa (c ∷ s) t q = lemma-δ^ dfa s t (δ dfa q c)
 
-smallPumping : ∀{n}
+returns-back : ∀{n}
   → (dfa : Dfa n)
   → (s : String)
   → (q : Fin n)
-  → q ≡ δ̂ dfa q s
-  → ∀(m : ℕ) → q ≡ δ̂ dfa q (s ^ m)
-smallPumping dfa s q eq zero = refl
-smallPumping dfa s q eq (suc m) with smallPumping dfa s q eq m | lemma-δ̂ dfa s (s ^ m) q
-... | ind | lm2 with subst (λ x → δ̂ dfa q (s ++ (s ^ m)) ≡ δ̂ dfa x (s ^ m)) (sym eq) lm2
-... | conc = trans ind (sym conc)
+  → q ≡ δ^ dfa q s
+  → ∀(m : ℕ) → q ≡ δ^ dfa q (s ^ m)
+returns-back dfa s q eq zero = refl
+returns-back dfa s q eq (suc m) with
+  returns-back dfa s q eq m | lemma-δ^ dfa s (s ^ m) q
+... | ind | lm2 rewrite sym eq = trans ind (sym lm2)
 
-bigPumping : ∀{n} {dfa : Dfa n}
+pumping-same-state : ∀{n} {dfa : Dfa n}
   → (s : String)
   → (t : String)
   → (u : String)
-  → let p = δ̂ dfa (S dfa) s in
-     p ≡ δ̂ dfa p t
+  → let p = δ^ dfa (S dfa) s in
+     p ≡ δ^ dfa p t
   → dfa ↓ (s ++ t ++ u)
-  → (m : ℕ)
-  → dfa ↓ (s ++ t ^ m ++ u)
-bigPumping {n} {dfa} s t u eq acc m with smallPumping dfa t (δ̂ dfa (S dfa) s) eq m
-... | small with lemma-δ̂ dfa (s ++ t) u (S dfa) | lemma-δ̂ dfa s (t ^ m) (S dfa) | lemma-δ̂ dfa s t (S dfa)
-... | d1 | d2 | d3 rewrite trans small (sym d2) | sym (trans eq (sym d3)) with trans d1 (sym (lemma-δ̂ dfa (s ++ (t ^ m)) u (S dfa)))
-... | notrly rewrite (++-assoc s t u) | (++-assoc s (t ^ m) u) | notrly = acc
+  → ∀ (m : ℕ) → dfa ↓ (s ++ t ^ m ++ u)
+pumping-same-state {n} {dfa} s t u p≡δ^_pt dfa↓stu m with
+  returns-back dfa t (δ^ dfa (S dfa) s) p≡δ^_pt m
+... | pump with   lemma-δ^ dfa (s ++ t)       u       (S dfa)
+                | lemma-δ^ dfa s              (t ^ m) (S dfa)
+                | lemma-δ^ dfa s              t       (S dfa)
+                | lemma-δ^ dfa (s ++ (t ^ m)) u       (S dfa)
+... | d1 | d2 | d3 | d4 rewrite
+                      trans pump (sym d2)
+                    | sym (trans p≡δ^_pt (sym d3))
+                    | ++-assoc s t u
+                    | ++-assoc s (t ^ m) u
+                    | trans d1 (sym d4) = dfa↓stu
 
 take++drop : (n : ℕ) → (s : String) → s ≡ take n s ++ drop n s
 take++drop zero s = refl
@@ -165,7 +173,7 @@ lemminoTakeDrop4 {x ∷ s} {fsuc i} {fsuc j} (s≤s i<j) = cong suc (lemminoTake
 tripartition : (s : String)
   → (i j : Fin (length s))
   → i <ᶠ j
-  → (∃₂ λ (x : String) (y : String) → ∃ λ (z : String) →
+  → ∃[ x ] ∃[ y ] ∃[ z ] (
       s ≡ x ++ y ++ z
       × y ≢ []
       × x ≡ take (toℕ i) s
@@ -204,55 +212,27 @@ lemman<m {zero} {suc m} n<m = m , refl
 lemman<m {suc n} {suc m} (s≤s n<m) with lemman<m {n} {m} n<m
 ...| p , snd = p , cong suc snd
 
-piccionaiaLimit : ∀{n}
+pigeonHoleLimit : ∀{n}
   → (vec : Vec (Fin n) (suc n))
   → ∃[ i ] ∃[ j ] (i <ᶠ j × toℕ j ≤ n × (vec ! i ≡ vec ! j))
-piccionaiaLimit {n} vec with pigeonhole (n<1+n n) (λ i → vec ! i)
+pigeonHoleLimit {n} vec with pigeonhole (n<1+n n) (λ i → vec ! i)
 ... | i , j , neq , eq with <-total neq
 ... | inj₁ x = i , j , x , lemmamtoℕ j , eq
 ... | inj₂ y = j , i , y , lemmamtoℕ i , (sym eq)
 
-piccionaia : ∀{n m}
+
+pigeonholeVec : ∀{n m}
   → (vec : Vec (Fin n) m)
   → n < m
-  → ∃[ i ] ∃[ j ] (i <ᶠ j × toℕ j ≤ n × (vec ! i ≡ vec ! j))
-piccionaia {n} {m} vec n<m with lemman<m n<m
+  → ∃[ i ] ∃[ j ] (i <ᶠ j × toℕ j ≤ n × vec ! i ≡ vec ! j)
+pigeonholeVec {n} {m} vec n<m with lemman<m n<m
 ... | p , eq rewrite sym eq with splitAt (suc n) vec
-... | l , r , e with piccionaiaLimit l
+... | l , r , e with pigeonHoleLimit l
 ... | i , j , i<j , j≤n , eq2 with trans (subst (_≡ l ! j) (sym (lookup-++ˡ l r i)) eq2) (sym (lookup-++ˡ l r j))
 ... | injEq rewrite sym e with toℕ-inject+ p i | toℕ-inject+ p j
 ... | toinjI | toinjJ with subst (_≤ n) toinjJ j≤n
 ... | j≤m with subst (suc (toℕ (inject+ p i)) ≤_) toinjJ (subst (λ x → suc x ≤ toℕ j) toinjI i<j)
 ... | inji<j = inject+ p i , inject+ p j , inji<j , j≤m , injEq
-
-lemmaPath : ∀{m}
-  → (dfa : Dfa m)
-  → (s : String)
-  → (i : Fin (length s))
-  → (q : Fin m)
-  → (path dfa q s ! i) ≡ δ̂ dfa q (take (toℕ i) s)
-lemmaPath dfa (c ∷ s) fzero q = refl
-lemmaPath dfa (c ∷ s) (fsuc i) q = lemmaPath dfa s i (δ dfa q c)
-
-pumingLemmaBase : ∀{n : ℕ}
-  → (dfa : Dfa n)
-  → ∀(w : String)
-  → dfa ↓ w
-  → n < length w
-  → ∃[ x ] ∃[ y ] ∃[ z ] (
-      w ≡ x ++ y ++ z
-      × ¬(y ≡ [])
-      × length (x ++ y) ≤ n
-      × ∀(k : ℕ) → dfa ↓ (x ++ y ^ k ++ z)
-    )
-pumingLemmaBase {n} dfa w dec gt with piccionaia (path dfa (S dfa) w) gt
-... | i , j , i<j , lt , eq  with tripartition w i j i<j
-... | x , y , z , eq2 , y≢[] , bydef1 , bydef2 , lenp with lemmaPath dfa w i (S dfa) | lemmaPath dfa w j (S dfa)
-... | lp1 | lp2 with subst (λ v → (path dfa (S dfa) w) ! i ≡ δ̂ dfa (S dfa) v) (sym bydef1) lp1
-... | u1 with subst (λ v → (path dfa (S dfa) w) ! j ≡ δ̂ dfa (S dfa) v) (sym bydef2) lp2
-... | u2 with trans u2 (lemma-δ̂ dfa x y (S dfa))
-... | u3 with subst (_≡ δ̂ dfa (δ̂ dfa (S dfa) x) y) (sym eq) u3
-... | u4 = x , y , z , ( eq2 , y≢[] , subst (_≤ n) (sym lenp) lt , bigPumping {n}{dfa} x y z (trans (sym u1) u4) (subst (dfa ↓_) eq2 dec) )
 
 pumpingLemma : {m : ℕ}
   → (dfa : Dfa m)
@@ -262,9 +242,32 @@ pumpingLemma : {m : ℕ}
     → n < length w
     → ∃[ x ] ∃[ y ] ∃[ z ] (
         w ≡ x ++ y ++ z
-        × ¬(y ≡ [])
+        × y ≢ ε
         × length (x ++ y) ≤ n
         × ∀(k : ℕ) → dfa ↓ (x ++ y ^ k ++ z)
       )
   )
-pumpingLemma {m} dfa = m , pumingLemmaBase dfa
+pumpingLemma {m} dfa = m , base
+  where
+  base : ∀(w : String)
+    → dfa ↓ w
+    → m < length w
+    → ∃[ x ] ∃[ y ] ∃[ z ] (
+        w ≡ x ++ y ++ z
+        × y ≢ []
+        × length (x ++ y) ≤ m
+        × ∀(k : ℕ) → dfa ↓ (x ++ y ^ k ++ z)
+      )
+  base w dfa↓w m<len_w with
+        pigeonholeVec (path dfa (S dfa) w) m<len_w
+  ... | i , j , i<j , j≤n , eq  with
+        tripartition w i j i<j
+  ... | x , y , z , w≡xyz , y≢ε , x≡takeI , xy≡takeJ , len_xy≡J with
+        lemmaPath dfa w i (S dfa) | lemmaPath dfa w j (S dfa)
+  ... | lp1 | lp2 rewrite
+        sym x≡takeI | sym xy≡takeJ | sym eq | sym len_xy≡J | w≡xyz =
+    x , y , z , ( refl , y≢ε , j≤n
+        , pumping-same-state x y z
+            (trans (sym lp1) (trans lp2 (lemma-δ^ dfa x y (S dfa))))
+            dfa↓w
+      )

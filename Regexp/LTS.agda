@@ -18,7 +18,7 @@ open import Data.List using (List; []; _∷_; [_]; map; length)
 
 module LTS (Σ : Set) (_≟_ : (a : Σ) → (b : Σ) → Dec (a ≡ b)) where
 open import Regexp Σ
-open import String Σ using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ; foldl)
+open import String Σ using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ)
 open import Brzozowski Σ _≟_
   using (isNullable; Nullable; ε-seq; split-seq; split-*)
   renaming (theorem1 to BrzozowskiT1)

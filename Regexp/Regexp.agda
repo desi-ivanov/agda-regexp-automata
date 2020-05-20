@@ -23,32 +23,24 @@ data RegExp : Set where
 
 infix 10 _∈_
 data _∈_ : String → RegExp → Set where
-  in-ε :
-    ε ∈( ⟨ε⟩ )
-  in-c :
-    (c : Σ)
-    → (c ∷ []) ∈( Atom c )
-  in-· :
-    ∀ {s t} {E F}
-    → s ∈ E
-    → t ∈ F
-    → (s ++ t) ∈( E · F )
-  in+l :
-      ∀ {s} {E F}
-    → s ∈( E )
-    → s ∈( E + F )
-  in+r :
-    ∀ {s} {E F}
-    → s ∈( F )
-    → s ∈( E + F )
-  in-*1 :
-     ∀ {E}
-     → ε ∈ (E *)
-  in-*2 :
-     ∀ {s t} {E}
-     → s ∈ E
-     → t ∈ (E *)
-     → (s ++ t) ∈ (E *)
+  in-ε  : ε ∈ ⟨ε⟩
+  in-c  : (c : Σ) → (c ∷ []) ∈ Atom c
+  in-·  : ∀ {s t} {E F}
+          → s ∈ E
+          → t ∈ F
+          → (s ++ t) ∈ (E · F)
+  in+l  : ∀ {s} {E F}
+          → s ∈ E
+          → s ∈ (E + F)
+  in+r  : ∀ {s} {E F}
+          → s ∈ F
+          → s ∈ (E + F)
+  in-*1 : ∀ {E}
+          → ε ∈ (E *)
+  in-*2 : ∀ {s t} {E}
+          → s ∈ E
+          → t ∈ (E *)
+          → (s ++ t) ∈ (E *)
 
 +-idˡ : ∀ {s : String} {E : RegExp}
   → s ∈(E) ≃ s ∈(⟨⟩ + E)
@@ -95,15 +87,15 @@ seq-nullˡ =
   → s ∈(E + F) ≃ s ∈(F + E)
 +-comm {s} {E} {F} =
   record
-    { to      = to
-    ; from    = from
-    ; from∘to = from∘to
-    ; to∘from = to∘from
-    }
+  { to      = to
+  ; from    = from
+  ; from∘to = from∘to
+  ; to∘from = to∘from
+  }
   where
     to : s ∈(E + F) → s ∈(F + E)
-    to (in+l sef) = in+r sef
-    to (in+r sef) = in+l sef
+    to (in+l x) = in+r x
+    to (in+r x) = in+l x
 
     from : s ∈(F + E) → s ∈(E + F)
     from (in+l x) = in+r x

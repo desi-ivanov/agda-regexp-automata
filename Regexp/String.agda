@@ -28,9 +28,9 @@ _++_ : String → String → String
 ++-idˡ [] = refl
 ++-idˡ (x ∷ x₁) = refl
 
-foldl : ∀ {B : Set} → (Σ → B → B) → B →  String → B
+foldl : ∀ {B : Set} → (B → Σ → B) → B →  String → B
 foldl f b [] = b
-foldl f b (x ∷ xs) = foldl f (f x b) xs
+foldl f b (x ∷ xs) = foldl f (f b x) xs
 
 length : String → ℕ
 length [] = zero

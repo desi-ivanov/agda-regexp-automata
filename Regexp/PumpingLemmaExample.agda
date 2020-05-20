@@ -15,19 +15,18 @@ open Eq using (_≡_; refl; _≢_; subst; sym; trans; cong; cong₂)
 open import Data.Vec renaming (_∷_ to _∷v_; [] to []v; _++_ to _++v_) hiding (take; drop)
 open import Data.Vec.Properties using (lookup-++ˡ)
 open import VecUtil
-
+open import Data.Fin.Subset using (⁅_⁆)
 module PumpingLemmaExample where
 open import Data.Char using (Char)
 open import String Char
 open import Dfa Char
 
 ----------------------------------------------------------------------------
-
 -- DFA accepting binary multiples of 3.
 -- The state 3F is the error state
 
 exampleDfa : Dfa 4
-exampleDfa = record { S = 0F ; δ = delta ; isF = only0F }
+exampleDfa = record { S = 0F ; δ = delta ; F = ⁅ 0F ⁆ }
   where
     delta : Fin 4 → Char → Fin 4
     delta 0F '0' = 0F
@@ -41,9 +40,6 @@ exampleDfa = record { S = 0F ; δ = delta ; isF = only0F }
 
     delta _ _ = 3F
 
-    only0F : Fin 4 → Bool
-    only0F 0F = true
-    only0F _ = false
 
 str1 = '1' ∷ '0' ∷ '1' ∷ '0' ∷ '1' ∷ []
 
@@ -72,20 +68,22 @@ examplePumping3 = λ neg → neg
 I = '1' ∷ []
 O = '0' ∷ []
 
-generator : ℕ → String
-generator n = (I ^ n) ++ (O ^ n)
+L : ℕ → String
+L n = (I ^ n) ++ (O ^ n)
 
-L : String → Set
-L x = ∃[ n ] (x ≡ generator n)
+_∈L : String → Set
+x ∈L = ∃[ n ] (x ≡ L n)
 
-^-join-+ : (s : String) → (n m : ℕ) → (s ^ n) ++ (s ^ m) ≡ s ^ (n + m)
+^-join-+ : (s : String) (n m : ℕ)
+  → (s ^ n) ++ (s ^ m) ≡ s ^ (n + m)
 ^-join-+ s 0F     0F = refl
 ^-join-+ s 0F     (suc m) = refl
 ^-join-+ s (suc n) m rewrite
       ++-assoc s (s ^ n) (s ^ m)
     | sym (^-join-+ s n m) = refl
 
-^-join-* : (s : String) → (n m : ℕ) → (s ^ n) ^ m ≡ s ^ (n * m)
+^-join-* : (s : String) (n m : ℕ)
+  → (s ^ n) ^ m ≡ s ^ (n * m)
 ^-join-* s 0F 0F = refl
 ^-join-* s 0F (suc m) = ^-join-* s 0F m
 ^-join-* s (suc n) 0F = ^-join-* s n 0F
@@ -99,17 +97,19 @@ L x = ∃[ n ] (x ≡ generator n)
           | sym (+-assoc m n (n * m))
           | +-comm m n = refl
 
-char-^-length-++ : (c : Char) → (n : ℕ) → (t : String) → length ((c ∷ []) ^ n ++ t) ≡ n + length t
+char-^-length-++ : (c : Char) (n : ℕ) (t : String)
+  → length ((c ∷ []) ^ n ++ t) ≡ n + length t
 char-^-length-++ c 0F t = refl
 char-^-length-++ c (suc n) t rewrite char-^-length-++ c n t = refl
 
-char-^-length : (c : Char) → (n : ℕ) → length ((c ∷ []) ^ n) ≡ n
+char-^-length : (c : Char) (n : ℕ)
+  → length ((c ∷ []) ^ n) ≡ n
 char-^-length c 0F = refl
 char-^-length c (suc n) rewrite char-^-length c n = refl
 
-generator-length=n+n : (n : ℕ) → length (generator n) ≡ n + n
-generator-length=n+n 0F = refl
-generator-length=n+n (suc n) rewrite char-^-length-++ '1' n ('0' ∷ (O ^ n)) | char-^-length '0' n = refl
+L-length=n+n : (n : ℕ) → length (L n) ≡ n + n
+L-length=n+n 0F = refl
+L-length=n+n (suc n) rewrite char-^-length-++ '1' n ('0' ∷ (O ^ n)) | char-^-length '0' n = refl
 
 dfa-states>0 : ∀{n} → (dfa : Dfa n) → 1 ≤ n
 dfa-states>0 {suc n} dfa = s≤s z≤n
@@ -144,7 +144,7 @@ char-pow-++ {c} {suc n} {.c ∷ xs} {y}  eq | refl with char-pow-++ {c} {n}{xs}{
 ... | l , m , eq1 , eq2 , eq3  =
   suc l , m , cong (c ∷_) eq1 , eq2 , (cong suc eq3)
 
-power>0 : ∀{l y} → y ≡ I ^ l → y ≢ [] → 1 ≤ l
+power>0 : ∀{l y} → y ≡ I ^ l → y ≢ ε → 1 ≤ l
 power>0 {0F} refl y = ⊥-elim(y refl)
 power>0 {suc l} eq neq = s≤s z≤n
 
@@ -172,7 +172,7 @@ xyz-to-power-base {suc n} {suc m} {.'1' ∷ x} {y} {z} e (s≤s les) | refl with
 xyz-to-power : ∀{n x y z}
   → (I ^ n) ++ (O ^ n) ≡ x ++ y ++ z
   → length (x ++ y) ≤ n
-  → y ≢ []
+  → y ≢ ε
   → ∃[ l ] ∃[ p ] ∃[ q ] (x ≡ I ^ l
                         × y ≡ I ^ p
                         × 0 < p
@@ -187,9 +187,9 @@ powSame {s} {suc n} {0F} ()
 powSame {s} {suc n} {suc m} {a} eq with listlem2 {a ∷ s} {(a ∷ s) ^ n} {(a ∷ s) ^ m} eq
 ... | u = cong suc (powSame u)
 
-exponents-equal : (m p n q : ℕ) → I ^ m ++ O ^ n
-                           ≡ I ^ p ++ O ^ q
-                           → m ≡ p × n ≡ q
+exponents-equal : (m p n q : ℕ)
+  → I ^ m ++ O ^ n ≡ I ^ p ++ O ^ q
+  → m ≡ p × n ≡ q
 exponents-equal 0F 0F      _ _ eq = refl , powSame eq
 exponents-equal 0F (suc p) n q eq  with char-pow-++ {'0'} {n} {I ^ (suc p)} {O ^ q} eq
 ... | zero , _ , () , _ , _
@@ -230,27 +230,33 @@ nLess1 l p n q x rewrite
 
 absurd-sum : (l p n q : ℕ)
   → 1 ≤ p
-  → l + p * suc n + q ≡ n
-  → ⊥
+  → l + p * (1 + n) + q ≢ n
 absurd-sum l p n q lt = <-implies-≢ (nLess1 l p n q lt)
 
 L-not-regular : ¬ ∃₂ λ (n : ℕ) (dfa : Dfa n)
                   → ∀ (s : String)
-                  → L s ⇔ dfa ↓ s
-L-not-regular (n , dfa , iff) with proj₂
+                  → s ∈L ⇔ dfa ↓ s
+L-not-regular (n , dfa , s∈L⇔dfa↓s) with proj₂
   (pumpingLemma dfa)
-  (generator n)
-  (_⇔_.to (iff (generator n)) (n , refl))
-  (subst (suc n ≤_) (sym (generator-length=n+n n)) (lemmaℕ≤ n (dfa-states>0 dfa)))
-... | x , y , z , eq , neq , lm , pump with xyz-to-power {n}{x}{y}{z} eq lm neq
-... | l , p , q , x≡I^l , y≡I^p , 0<p , z≡I^q++I^n rewrite y≡I^p | x≡I^l | z≡I^q++I^n with
-  _⇔_.from (iff (I ^ l ++ I ^ p ^ (1 + n) ++ I ^ q ++ O ^ n)) (pump (1 + n))
+  (L n)
+  (_⇔_.to (s∈L⇔dfa↓s (L n)) (n , refl))
+  (subst (suc n ≤_)
+          (sym (L-length=n+n n))
+          (lemmaℕ≤ n (dfa-states>0 dfa))
+  )
+... | x , y , z , eq , neq , lm , pump with xyz-to-power eq lm neq
+... | l , p , q , x≡I^l , y≡I^p , 0<p , z≡I^q++I^n rewrite
+  y≡I^p | x≡I^l | z≡I^q++I^n with
+  _⇔_.from
+    (s∈L⇔dfa↓s (I ^ l ++ I ^ p ^ (1 + n) ++ I ^ q ++ O ^ n))
+    (pump (1 + n))
 ... | fst , snd rewrite
-  ^-join-* I p (1 + n)
-  | sym (++-assoc (I ^ l) (I ^ (p * (1 + n))) (I ^ q ++ O ^ n))
-  | ^-join-+ I l (p * (1 + n))
-  | sym (++-assoc (I ^ (l + (p * (1 + n)))) (I ^ q) (O ^ n))
-  | ^-join-+ I (l + p * (1 + n)) q with exponents-equal (l + p * suc n + q) fst n fst snd
+      ^-join-* I p (1 + n)
+    | sym (++-assoc (I ^ l) (I ^ (p * (1 + n))) (I ^ q ++ O ^ n))
+    | ^-join-+ I l (p * (1 + n))
+    | sym (++-assoc (I ^ (l + (p * (1 + n)))) (I ^ q) (O ^ n))
+    | ^-join-+ I (l + p * (1 + n)) q
+  with exponents-equal (l + p * suc n + q) fst n fst snd
 ... | a , b = absurd-sum l p n q 0<p (trans a (sym b))
 
 
