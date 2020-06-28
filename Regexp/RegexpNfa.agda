@@ -66,8 +66,6 @@ nfac-correct {c} {x ∷ y ∷ s} d with x ≟ c
 ... | yes p = contradiction d (2F-is-error {c} {x ∷ y ∷ s})
 ... | no ¬p = contradiction d (2F-is-error {c} {x ∷ y ∷ s})
 
-left = left
-right = _⇔_.from
 
 toNFA : (R : RegExp)
     → ∃₂ λ (n : ℕ) (nfa : Nfa n)
@@ -107,8 +105,8 @@ toNFA (R + F) with toNFA R | toNFA F
   to :  (s : String)
     → s ∈ (R + F)
     → union A B ↓ s
-  to s (in+l s∈R) = left (union-correct s) (inj₁ (left (w∈R⇔A↓w s) s∈R))
-  to s (in+r s∈F) = left (union-correct s) (inj₂ (left (w∈F⇔B↓w s) s∈F))
+  to s (in+l s∈R) = _⇔_.to (union-correct s) (inj₁ (_⇔_.to (w∈R⇔A↓w s) s∈R))
+  to s (in+r s∈F) = _⇔_.to (union-correct s) (inj₂ (_⇔_.to (w∈F⇔B↓w s) s∈F))
 
   from : (s : String)
     → union A B ↓ s
@@ -126,12 +124,12 @@ toNFA (R · F) with toNFA R | toNFA F
     → concat A B ↓ s
   to _ (in-· {u} {v} u∈R v∈F) =
     _⇔_.from (concat-correct (u ++ˢ v))
-      (u , v , refl , left (w∈R⇔A↓w u) u∈R , left (w∈F⇔B↓w v) v∈F)
+      (u , v , refl , _⇔_.to (w∈R⇔A↓w u) u∈R , _⇔_.to (w∈F⇔B↓w v) v∈F)
 
   from : (s : String)
     → concat A B ↓ s
     → s ∈ (R · F)
-  from s AB↓s with left (concat-correct s) AB↓s
+  from s AB↓s with _⇔_.to (concat-correct s) AB↓s
   ... | u , v , s≡uv , A↓u , B↓v rewrite s≡uv =
     in-· (_⇔_.from (w∈R⇔A↓w u) A↓u) (_⇔_.from (w∈F⇔B↓w v) B↓v)
 
@@ -144,7 +142,7 @@ toNFA (R *) with toNFA R
     → star A ↓ s
   to _ in-*1 = tt
   to _ (in-*2 {u} {v} u∈R v∈R*) =
-    star-correct1 {_} {u} {v} (left (s∈R⇔A↓s u) u∈R , (to v v∈R*))
+    star-correct1 {_} {u} {v} (_⇔_.to (s∈R⇔A↓s u) u∈R , (to v v∈R*))
 
   lenv<lenau++v : ∀{u v} → (a : Σ) → length v <′ length (a ∷ u ++ˢ v)
   lenv<lenau++v {[]} {v} a = ≤′-refl
@@ -176,4 +174,4 @@ _∈?_ : (v : String) → (F : RegExp) → Dec (v ∈ F)
 v ∈? F with toNFA F
 ... | _ , A , v∈F⇔A↓v with A ↓? v
 ... | yes A↓v = yes (_⇔_.from (v∈F⇔A↓v v) A↓v)
-... | no ¬A↓v = no λ v∈F → contradiction (left (v∈F⇔A↓v v) v∈F) ¬A↓v
+... | no ¬A↓v = no λ v∈F → contradiction (_⇔_.to (v∈F⇔A↓v v) v∈F) ¬A↓v

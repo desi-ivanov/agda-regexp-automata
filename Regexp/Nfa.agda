@@ -15,6 +15,7 @@ open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Unit using (⊤; tt)
 open import Data.Empty using (⊥-elim)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
+open import Relation.Nullary.Sum using (_¬-⊎_)
 open import String Σ using (String; _∷_; []; ++-idˡ; ++-idʳ; take; drop; ++-assoc; length) renaming (_++_ to _++ˢ_)
 open import Data.Vec renaming (_∷_ to _∷v_; [] to []v) hiding (concat; splitAt; take; drop)
 open import Data.Vec.Properties
@@ -32,34 +33,35 @@ record Nfa (n : ℕ) : Set where
     F : Subset n
 
 any : ∀{n} → (P : Fin n → Bool) → Bool
-any {zero}  f = false
-any {suc _} f = f fzero ∨ any λ x → f (fsuc x)
+any {zero}  P = false
+any {suc _} P = P fzero ∨ any λ x → P (fsuc x)
 open Nfa
 
 accepts : ∀{n} → Nfa n → Fin n → String → Bool
-accepts nfa q []       = F nfa ! q
-accepts nfa q (c ∷ s) = any λ p → δ nfa q c ! p ∧ accepts nfa p s
+accepts A q []       = F A ! q
+accepts A q (c ∷ s) = any λ p → (δ A q c) ! p ∧ accepts A p s
 
 infix 10 _↓_
 _↓_ : ∀{n} → Nfa n → String → Set
-nfa ↓ s  = T (accepts nfa (S nfa) s)
+A ↓ s  = T (accepts A (S A) s)
 
 _↓?_ : ∀{n} → (nfa : Nfa n) → (s : String) → Dec (nfa ↓ s)
-nfa ↓? s = T? (accepts nfa (S nfa) s)
+A ↓? s = T? (accepts A (S A) s)
 
 -- Alternative 1: Acceptance by Intersection of final states with extendend delta
 δ^ : ∀{n} → Nfa n → (Subset n) → String → (Subset n)
-δ^ {n} nfa qs [] = qs
-δ^ {n} nfa qs (c ∷ s) = δ^ nfa (U (mapS qs (λ q → δ nfa q c) ∅)) s
+δ^ {n} A qs [] = qs
+δ^ {n} A qs (c ∷ s) = δ^ A (U (mapS qs (λ q → δ A q c) ∅)) s
 
 infix 10 _↓′_
 _↓′_ : ∀{n} → Nfa n → String → Set
-nfa ↓′ s  = Nonempty ((F nfa) ∩ (δ^ nfa ⁅ S nfa ⁆ s))
+A ↓′ s  = Nonempty ((F A) ∩ (δ^ A ⁅ S A ⁆ s))
 
 -- Alternative 2: Acceptance by States path
 data Acc {n} : Nfa n → Fin n → String → Set where
   Acc[] : ∀{q}{nfa} → q ∈ F nfa → Acc nfa q []
   Acc∷ : ∀{p x xs q nfa} → p ∈ δ nfa q x → Acc nfa p xs → Acc nfa q (x ∷ xs)
+
 infix 10 _↓′′_
 _↓′′_ : ∀{n} → Nfa n → String → Set
 nfa ↓′′ s = Acc nfa (S nfa) s
@@ -174,8 +176,15 @@ fromExists {_} {f} (fsuc fst , snd) = injectOrR (fromExists ( fst , snd ))
 nextState : ∀{n x xs q} {nfa : Nfa n}
   → T (accepts nfa q (x ∷ xs))
   → ∃[ p ] ( p ∈ (δ nfa q x)  × T (accepts nfa p xs))
-nextState {n} {x} {xs} {q} {nfa} p with anyToExists {n} {λ z → (δ nfa q x) ! z ∧ accepts nfa z xs} p
-... | fst , snd = fst , (splitAnd {(δ nfa q x) ! fst} {accepts nfa fst xs} snd)
+nextState {n} acc-x-xs with anyToExists {n} acc-x-xs
+... | p , p∈δqx_∧_acc-p-xs = p , (splitAnd p∈δqx_∧_acc-p-xs)
+
+toAccPath : ∀{n} {nfa : Nfa n} {q xs}
+  → T (accepts nfa q xs)
+  → Acc nfa q xs
+toAccPath     {xs = []}     acc = Acc[] acc
+toAccPath {n} {xs = x ∷ xs} acc with nextState {n} {x} {xs} acc
+... | p , p∈δqx , acc-p-xs = Acc∷ p∈δqx (toAccPath acc-p-xs)
 
 ++-inject : ∀{n m} → (v : Vec Bool n) → (w : Vec Bool m)
   → (p : Fin n)
@@ -514,7 +523,7 @@ union-correct {n}{m}{A}{B} s =
   ... | yes _  | yes _ = tt
   ... | yes _  | no  _ = tt
   ... | no  _  | yes _ = tt
-  ... | no ¬p  | no ¬q = ⊥-elim (⊥-elim-⊎ ¬p ¬q ac)
+  ... | no ¬p  | no ¬q = ⊥-elim ((¬p ¬-⊎ ¬q) ac)
   to (c ∷ s) (inj₁ y) with nextState {_} {c} {s} y
   ... | w , t , f with _⇔_.to (union-preservesˡ s) f
               | ++-inject (δ A (S A) c) (δ B (S B) c) w t
