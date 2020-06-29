@@ -12,7 +12,7 @@ open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Equivalence
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; _≢_; subst; sym; trans; cong; cong₂)
-open import Data.Vec renaming (_∷_ to _∷v_; [] to []v; _++_ to _++v_) hiding (take; drop)
+open import Data.Vec renaming (_++_ to _++v_) hiding (take; drop)
 open import Data.Vec.Properties using (lookup-++ˡ)
 open import Data.Fin.Subset as Subset using (Subset; ∁)
 open import VecUtil
@@ -20,6 +20,7 @@ open import VecUtil
 module Dfa (Σ : Set) where
 open import String Σ
 
+ε : String
 ε = []
 
 record Dfa (n : ℕ) : Set where
@@ -57,14 +58,14 @@ dfa ↓? s = δ^ dfa (S dfa) s ∈? F dfa
 ∁dfa-same-δ^ dfa q (x ∷ s) = ∁dfa-same-δ^ dfa (δ dfa q x) s
 
 x∈p⇒x∉∁p : ∀ {n x} → (p : Subset n) → x ∈ p → x ∉ ∁ p
-x∈p⇒x∉∁p {_} {0F} (false ∷v p) a b = a
-x∈p⇒x∉∁p {_} {0F} (true ∷v p) a b = b
-x∈p⇒x∉∁p {_} {fsuc x} (_ ∷v p) a b = x∈p⇒x∉∁p {_}{x} p a b
+x∈p⇒x∉∁p {_} {0F} (false ∷ p) a b = a
+x∈p⇒x∉∁p {_} {0F} (true ∷ p) a b = b
+x∈p⇒x∉∁p {_} {fsuc x} (_ ∷ p) a b = x∈p⇒x∉∁p {_}{x} p a b
 
 x∉∁p⇒x∈p : ∀ {n x} → (p : Subset n) → x ∉ ∁ p → x ∈ p
-x∉∁p⇒x∈p {_} {0F} (false ∷v p) ne = ne tt
-x∉∁p⇒x∈p {_} {0F} (true ∷v p) ne = tt
-x∉∁p⇒x∈p {_} {fsuc x} (_ ∷v p) ne = x∉∁p⇒x∈p {_}{x} p ne
+x∉∁p⇒x∈p {_} {0F} (false ∷ p) ne = ne tt
+x∉∁p⇒x∈p {_} {0F} (true ∷ p) ne = tt
+x∉∁p⇒x∈p {_} {fsuc x} (_ ∷ p) ne = x∉∁p⇒x∈p {_}{x} p ne
 
 
 ∁dfa-correct : ∀{s n} {dfa : Dfa n}
@@ -81,8 +82,8 @@ s ^ zero = []
 s ^ (suc n) = s ++ s ^ n
 
 path : ∀{m} → Dfa m → Fin m → (s : String) → Vec (Fin m) (length s)
-path dfa q [] = []v
-path dfa q (c ∷ s) = q ∷v (path dfa (δ dfa q c) s)
+path dfa q [] = []
+path dfa q (c ∷ s) = q ∷ (path dfa (δ dfa q c) s)
 
 lemmaPath : ∀{m}
   → (dfa : Dfa m)

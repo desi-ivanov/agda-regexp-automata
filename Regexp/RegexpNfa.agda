@@ -84,7 +84,7 @@ toNFA ⟨ε⟩ = 2 , ε-nfa , iff
     { to = λ ()
     ; from = λ nfa↓xs → ⊥-elim (nfaε-correct (x ∷ s) (λ ()) nfa↓xs )
     }
-toNFA (Atom c) = 3 , c-nfa c , λ s → record { to = to ; from = from }
+toNFA (Atom c) = 3 , c-nfa c , λ s → to IFF from
   where
   to : ∀{s}
     → s ∈ Atom c

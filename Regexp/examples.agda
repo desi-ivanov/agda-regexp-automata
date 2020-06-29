@@ -19,7 +19,7 @@ c = suc (suc zero)
 open import String Σ hiding (foldl)
 open import Regexp Σ
 open import Brzozowski Σ _≟_
-open import RegexpNfa Σ _≟_ hiding (_∈?_)
+open import RegexpNfa Σ _≟_ as RegNFA hiding (_∈?_)
 
 a* = Atom a *
 b* = Atom b *
@@ -108,8 +108,8 @@ module dfa-examples where
   open import Dfa Σ
   open import Data.Fin renaming (_≟_ to _≟ᶠ_)
   open import Data.Fin.Subset
-  open import Data.Vec hiding (foldl; map)
-  open import Data.List
+  open import Data.Vec hiding (foldl; map; _++_)
+  open import Data.List hiding(_++_)
 
   TransitionsList = λ n → List (Fin n × Σ × Fin n)
 
@@ -196,6 +196,47 @@ module dfa-examples where
   p10 : ¬ dfa-[a[c+b]]* ↓ (a ∷ a ∷ [])
   p10 ()
 
+  open Data.Nat._≤_
+
+
+
+  dfa-binary-multiples-5 = make-dfa 6 0F 5F (0F ∷ []) (
+        (0F , 0 , 0F)
+      ∷ (0F , 1 , 1F)
+      ∷ (1F , 0 , 2F)
+      ∷ (1F , 1 , 3F)
+      ∷ (2F , 1 , 0F)
+      ∷ (2F , 0 , 4F)
+      ∷ (3F , 1 , 2F)
+      ∷ (3F , 0 , 1F)
+      ∷ (4F , 1 , 4F)
+      ∷ (4F , 0 , 3F)
+      ∷ []
+    )
+
+  -- [115] dec = [1110011] bin
+
+  pumpLem = proj₂
+              (pumpingLemma dfa-binary-multiples-5)
+              (1 ∷ 1 ∷ 1 ∷ 0 ∷ 0 ∷ 1 ∷ 1 ∷ [])
+              tt
+              (s≤s (s≤s (s≤s (s≤s (s≤s (s≤s (s≤s z≤n)))))))
+
+  x : String
+  x = 1 ∷ 1 ∷ []
+
+  y : String
+  y = 1 ∷ 0 ∷ 0 ∷ []
+
+  z : String
+  z = 1 ∷ 1 ∷ []
+
+  acc1 : dfa-binary-multiples-5 ↓ (x ++ y ^ 0 ++ z)
+  acc1 = tt
+
+  acc2 : dfa-binary-multiples-5 ↓ (x ++ y ^ 3 ++ z)
+  acc2 = tt
+
 module nfa-examples where
   open import Nfa Σ
   open import Data.Fin renaming (_≟_ to _≟ᶠ_)
@@ -264,10 +305,13 @@ module nfa-examples where
       ∷ []
     )
 
-  t : nfa-term-by-abc ↓ (a ∷ b ∷ c ∷ [])
+  abc : String
+  abc = a ∷ b ∷ c ∷ []
+
+  t : nfa-term-by-abc ↓ (abc)
   t = tt
 
-  u : nfa-term-by-abc ↓ (a ∷ a ∷ a ∷ a ∷ b ∷ c ∷ [])
+  u : nfa-term-by-abc ↓ (a ∷ a ∷ a ∷ abc)
   u = tt
 
   v : ¬ nfa-term-by-abc ↓ (b ∷ a ∷ c ∷ [])
@@ -275,7 +319,7 @@ module nfa-examples where
 
   nfa-union-babb-abc = union nfa-babb-substring nfa-term-by-abc
 
-  q : nfa-union-babb-abc ↓ (a ∷ b ∷ c ∷ [])
+  q : nfa-union-babb-abc ↓ (abc)
   q = tt
 
   r : nfa-union-babb-abc ↓ (b ∷ a ∷ b ∷ b ∷ [])
@@ -286,26 +330,31 @@ module nfa-examples where
 
   nfa-concat-babb-abc = concat nfa-babb-substring nfa-term-by-abc
 
-  o : nfa-concat-babb-abc ↓ (babb ++ a ∷ b ∷ c ∷ [])
+  o : nfa-concat-babb-abc ↓ (babb ++ abc)
   o = tt
 
   p : ¬ nfa-concat-babb-abc ↓ babb
   p ()
 
+  nfa-star-term-abc = star nfa-term-by-abc
+
+  k : nfa-star-term-abc ↓ (abc ++ abc)
+  k = tt
+
+  l : nfa-star-term-abc ↓ (abc ++ a ∷ a ∷ abc)
+  l = tt
+
+  m : ¬ nfa-star-term-abc ↓ (a ∷ abc ++ c ∷ c ∷ [])
+  m ()
+
 module regexp-nfa-examples where
   open import Nfa Σ
   open Nfa
 
-  tnf = toNFA [aa]*
+  tnf = toNFA a*b?a*
 
 
   nfa = proj₁ (proj₂ tnf)
   iff = proj₂ (proj₂ tnf)
 
-  str = (a ∷ a ∷ a ∷ a ∷ [])
-
-  z1 = str ∈? [aa]*
-  z2 = nfa ↓? str
-  z4 =  [aa]* [ a ]
-  p : str ∈ [aa]* × nfa ↓ str
-  p = _⇔_.from (iff str) tt , tt
+  -- x = (a ∷ a ∷ b ∷ a ∷ a ∷ a ∷ []) RegNFA.∈? a*b?a*
