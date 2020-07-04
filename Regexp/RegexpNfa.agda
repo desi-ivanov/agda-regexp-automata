@@ -25,14 +25,14 @@ open import String Σ using (String; _∷_; []; length) renaming (_++_ to _++ˢ_
 open import Nfa Σ hiding (Acc; ε)
 open import Regexp Σ
 
-∅-nfa : Nfa 1
-∅-nfa = record { S = 0F ; δ = λ _ _ → ⁅ 0F ⁆ ; F = ∅ }
+nfa-∅ : Nfa 1
+nfa-∅ = record { S = 0F ; δ = λ _ _ → ⁅ 0F ⁆ ; F = ∅ }
 
-ε-nfa : Nfa 2
-ε-nfa = record { S = 0F ; δ = λ _ _ → ⁅ 1F ⁆ ; F = ⁅ 0F ⁆ }
+nfa-ε : Nfa 2
+nfa-ε = record { S = 0F ; δ = λ _ _ → ⁅ 1F ⁆ ; F = ⁅ 0F ⁆ }
 
-c-nfa : (c : Σ) → Nfa 3
-c-nfa c = record { S = 0F ; δ = δ ; F = ⁅ 1F ⁆ }
+nfa-c : (c : Σ) → Nfa 3
+nfa-c c = record { S = 0F ; δ = δ ; F = ⁅ 1F ⁆ }
   where
     δ : Fin 3 → Σ → Subset 3
     δ 0F k with k ≟ c
@@ -44,22 +44,22 @@ extractOrL : ∀{a} → T(a ∨ false) → T a
 extractOrL {false} z = z
 extractOrL {true} _ = tt
 
-∅-nfa-is-empty : (s : String) → ¬ (∅-nfa ↓ s)
-∅-nfa-is-empty (x ∷ s) r = ⊥-elim (∅-nfa-is-empty s (extractOrL r))
+nfa-∅-is-empty : (s : String) → ¬ (nfa-∅ ↓ s)
+nfa-∅-is-empty (x ∷ s) r = ⊥-elim (nfa-∅-is-empty s (extractOrL r))
 
-1F-is-error : (s : String) → ¬ (T (accepts ε-nfa 1F s))
+1F-is-error : (s : String) → ¬ (T (accepts nfa-ε 1F s))
 1F-is-error [] z = z
 1F-is-error (x ∷ s) z = ⊥-elim (1F-is-error s (extractOrL z))
 
-nfaε-correct : (s : String) → ¬ (s ≡ ε) → ¬ (ε-nfa ↓ s)
+nfaε-correct : (s : String) → ¬ (s ≡ ε) → ¬ (nfa-ε ↓ s)
 nfaε-correct [] a b = a refl
 nfaε-correct (x ∷ s) a b = 1F-is-error s (extractOrL b)
 
-2F-is-error : ∀{c s} → ¬ (T (accepts (c-nfa c) 2F s ))
+2F-is-error : ∀{c s} → ¬ (T (accepts (nfa-c c) 2F s ))
 2F-is-error {c} {x ∷ s} d =
   contradiction (extractOrL d) (2F-is-error {c} {s})
 
-nfac-correct : ∀{c}{s} → c-nfa c ↓ s → s ≡ (c ∷ [])
+nfac-correct : ∀{c}{s} → nfa-c c ↓ s → s ≡ (c ∷ [])
 nfac-correct {c} {x ∷ []} d with x ≟ c
 ... | yes p = cong (_∷ []) p
 nfac-correct {c} {x ∷ y ∷ s} d with x ≟ c
@@ -71,30 +71,32 @@ toNFA : (R : RegExp)
     → ∃₂ λ (n : ℕ) (nfa : Nfa n)
       → ∀ (s : String)
       → s ∈ R ⇔ nfa ↓ s
-toNFA ⟨⟩ = 1 , ∅-nfa , λ s → record
+toNFA ⟨⟩ = 1 , nfa-∅ , λ s → record
     { to = λ ()
-    ; from = λ nfa↓s → ⊥-elim (∅-nfa-is-empty s nfa↓s)
+    ; from = λ nfa↓s → ⊥-elim (nfa-∅-is-empty s nfa↓s)
     }
-toNFA ⟨ε⟩ = 2 , ε-nfa , iff
+
+toNFA ⟨ε⟩ = 2 , nfa-ε , iff
   where
   iff : (s : String)
-    → s ∈ ⟨ε⟩ ⇔ ε-nfa ↓ s
+    → s ∈ ⟨ε⟩ ⇔ nfa-ε ↓ s
   iff [] = record { to = λ _ → tt ; from = λ _ → in-ε }
   iff (x ∷ s) = record
     { to = λ ()
     ; from = λ nfa↓xs → ⊥-elim (nfaε-correct (x ∷ s) (λ ()) nfa↓xs )
     }
-toNFA (Atom c) = 3 , c-nfa c , λ s → to IFF from
+
+toNFA (Atom c) = 3 , nfa-c c , λ s → to IFF from
   where
   to : ∀{s}
     → s ∈ Atom c
-    → c-nfa c ↓ s
+    → nfa-c c ↓ s
   to (in-c c) with c ≟ c
   ... | yes p = tt
   ... | no ¬p = ¬p refl
 
   from : ∀{s}
-    → c-nfa c ↓ s
+    → nfa-c c ↓ s
     → s ∈ Atom c
   from {s} nfa↓s rewrite nfac-correct {c} {s} nfa↓s = in-c c
 
@@ -105,8 +107,10 @@ toNFA (R + F) with toNFA R | toNFA F
   to :  (s : String)
     → s ∈ (R + F)
     → union A B ↓ s
-  to s (in+l s∈R) = _⇔_.to (union-correct s) (inj₁ (_⇔_.to (w∈R⇔A↓w s) s∈R))
-  to s (in+r s∈F) = _⇔_.to (union-correct s) (inj₂ (_⇔_.to (w∈F⇔B↓w s) s∈F))
+  to s (in+l s∈R)
+    = _⇔_.to (union-correct s) (inj₁ (_⇔_.to (w∈R⇔A↓w s) s∈R))
+  to s (in+r s∈F)
+    = _⇔_.to (union-correct s) (inj₂ (_⇔_.to (w∈F⇔B↓w s) s∈F))
 
   from : (s : String)
     → union A B ↓ s
@@ -124,7 +128,11 @@ toNFA (R · F) with toNFA R | toNFA F
     → concat A B ↓ s
   to _ (in-· {u} {v} u∈R v∈F) =
     _⇔_.from (concat-correct (u ++ˢ v))
-      (u , v , refl , _⇔_.to (w∈R⇔A↓w u) u∈R , _⇔_.to (w∈F⇔B↓w v) v∈F)
+      (u
+      , v
+      , refl
+      , _⇔_.to (w∈R⇔A↓w u) u∈R
+      , _⇔_.to (w∈F⇔B↓w v) v∈F)
 
   from : (s : String)
     → concat A B ↓ s

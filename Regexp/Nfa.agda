@@ -173,6 +173,7 @@ fromExists : ∀{n} {f : Fin n → Bool} → ∃[ i ] T(f i) → T(any f)
 fromExists {_} {f} (0F , snd) = injectOrL snd
 fromExists {_} {f} (fsuc fst , snd) = injectOrR (fromExists ( fst , snd ))
 
+
 nextState : ∀{n x xs q} {nfa : Nfa n}
   → T (accepts nfa q (x ∷ xs))
   → ∃[ p ] ( p ∈ (δ nfa q x)  × T (accepts nfa p xs))
@@ -266,10 +267,6 @@ split-∈++ {suc n} {m} Data.Fin.1F (true ∷v ss1) ss2 tt = inj₁ (0F , refl ,
 split-∈++ {suc n} {m} (fsuc (fsuc q)) (x ∷v ss1) ss2 acc with split-∈++ {n}{m}(fsuc q) ss1 ss2 acc
 split-∈++ {suc n} {m} (fsuc (fsuc q)) (x ∷v ss1) ss2 acc | inj₁ (fst , snd , trd) = inj₁ (fsuc fst , cong fsuc snd , trd )
 split-∈++ {suc n} {m} (fsuc (fsuc q)) (x ∷v ss1) ss2 acc | inj₂ (fst , snd , trd) = inj₂ (fst , cong fsuc snd , trd )
-
-⊥-elim-⊎ : ∀ {A B : Set} → ¬ A → ¬ B → ¬ (A ⊎ B)
-⊥-elim-⊎ a b (inj₁ x) = a x
-⊥-elim-⊎ a b (inj₂ y) = b y
 
 --------------------------------------------------------------------------------
 -- Correctness of concat
@@ -440,30 +437,28 @@ union-preservesˡ {n}{m} {A} {B} {q} s =
   to : (s : String) (q : Fin n)
     → T (accepts A q s)
     → T (accepts (union A B) (fsuc (inject+ m q)) s)
-  to [] q acc with
-      A ↓? ε
-    | B ↓? ε
-    | ++-inject (F A) (F B) q acc
-  ...| yes _ | yes _ | v = v
-  ...| yes _ | no  _ | v = v
-  ...| no  _ | yes _ | v = v
-  ...| no  _ | no  _ | v = v
+  to [] q acc with A ↓? ε | B ↓? ε | ++-inject (F A) (F B) q acc
+  ...| yes _ | yes _ | acc-∪ = acc-∪
+  ...| yes _ | no  _ | acc-∪ = acc-∪
+  ...| no  _ | yes _ | acc-∪ = acc-∪
+  ...| no  _ | no  _ | acc-∪ = acc-∪
+
   to (c ∷ s) q acc with nextState {_} {c} {s} acc
-  ... | w , w∈δqc , t rewrite splitAt-inject+ n m q
-                  with to s w t
-                  | ++-inject {n}{m} (δ A q c) ∅ w w∈δqc
-  ... | z | d = fromExists (inject+ m w , (joinAnd d z))
+  ... | w , w∈δqc , t rewrite splitAt-inject+ n m q =
+    let IH = to s w t in
+    let d = ++-inject {n}{m} (δ A q c) ∅ w w∈δqc
+      in fromExists (inject+ m w , (joinAnd d IH))
 
   from : (s : String) (q : Fin n)
     → T (accepts (union A B) (fsuc (inject+ m q)) s)
     → T (accepts A q s)
-  from [] q d rewrite
-        sym (lookup-++ˡ (F A) (F B) q)
+  from [] q acc rewrite sym (lookup-++ˡ (F A) (F B) q)
     with A ↓? ε | B ↓? ε
-  ... | yes _ | yes _  = d
-  ... | yes _ | no  _  = d
-  ... | no  _ | yes _  = d
-  ... | no  _ | no  _  = d
+  ... | yes _ | yes _  = acc
+  ... | yes _ | no  _  = acc
+  ... | no  _ | yes _  = acc
+  ... | no  _ | no  _  = acc
+
   from (x ∷ s) q d with nextState {_} {x} {s} {fsuc (inject+ m q)} d
   ... | w , w∈δqx , accWs rewrite splitAt-inject+ n m q
     with q∈ss++∅ w (δ A q x) w∈δqx
@@ -524,14 +519,20 @@ union-correct {n}{m}{A}{B} s =
   ... | yes _  | no  _ = tt
   ... | no  _  | yes _ = tt
   ... | no ¬p  | no ¬q = ⊥-elim ((¬p ¬-⊎ ¬q) ac)
-  to (c ∷ s) (inj₁ y) with nextState {_} {c} {s} y
-  ... | w , t , f with _⇔_.to (union-preservesˡ s) f
-              | ++-inject (δ A (S A) c) (δ B (S B) c) w t
-  ... | ur | pur = fromExists (inject+ m w , joinAnd pur ur)
-  to (c ∷ s) (inj₂ y) with nextState {_} {c} {s} y
-  ... | w , t , f with _⇔_.to (union-preservesʳ s)  f
-              | ++-raise (δ A (S A) c) (δ B (S B) c) w t
-  ... | ur | pur = fromExists (raise n w , joinAnd pur ur)
+
+  to (c ∷ s) (inj₁ A↓cs) with nextState {_} {c} {s} A↓cs
+  ... | w , w∈δA , accepts-s-w-A
+                with ++-inject (δ A (S A) c) (δ B (S B) c) w w∈δA
+                   | _⇔_.to (union-preservesˡ s) accepts-s-w-A
+  ... | w∈δA∪B | accepts-s-w-A∪B
+    = fromExists (inject+ m w , joinAnd w∈δA∪B accepts-s-w-A∪B)
+
+  to (c ∷ s) (inj₂ B↓cs) with nextState {_} {c} {s} B↓cs
+  ... | w , w∈δB , accepts-w-B
+                with ++-raise (δ A (S A) c) (δ B (S B) c) w w∈δB
+                   | _⇔_.to (union-preservesʳ s) accepts-w-B
+  ... | w∈δA∪B | accepts-s-w-A∪B
+    = fromExists (raise n w , joinAnd w∈δA∪B accepts-s-w-A∪B)
 
 
   from : (s : String) → union A B ↓ s → A ↓ s ⊎ B ↓ s
@@ -539,12 +540,13 @@ union-correct {n}{m}{A}{B} s =
   ... | yes p | yes p₁ = inj₁ p
   ... | yes p | no ¬p  = inj₁ p
   ... | no ¬p | yes p  = inj₂ p
+
   from (x ∷ s) d with nextState {suc n + m} {x} {s} {0F} d
-  ... | w , t , f with split-∈++ w (δ A (S A) x) (δ B (S B) x) t
+  ... | w , w∈δSc , accepts-w-s with split-∈++ w (δ A (S A) x) (δ B (S B) x) w∈δSc
   ... | inj₁ (p , eq , z) rewrite eq =
-    inj₁ (fromExists (p , joinAnd z (_⇔_.from (union-preservesˡ s) f)))
+    inj₁ (fromExists (p , joinAnd z (_⇔_.from (union-preservesˡ s) accepts-w-s)))
   ... | inj₂ (p , eq , z) rewrite eq =
-    inj₂ (fromExists (p , joinAnd z (_⇔_.from (union-preservesʳ s) f)))
+    inj₂ (fromExists (p , joinAnd z (_⇔_.from (union-preservesʳ s) accepts-w-s)))
 
 --------------------------------------------------------------------------------
 -- Correctness of star
