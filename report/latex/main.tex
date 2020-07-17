@@ -1,0 +1,137 @@
+\documentclass[12pt]{book}
+
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage[pdftex]{color, graphicx}
+\usepackage{makeidx}
+\usepackage{minted}
+\usepackage{newunicodechar}
+\usepackage{stmaryrd}
+\usepackage{geometry}
+\usepackage{times}
+
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning}
+
+\usemintedstyle{bw}
+
+\newenvironment{agda}
+    {%
+    \VerbatimEnvironment
+    \begin{minted}[fontsize=\small]{my-lexer.py:DAgdaLexer -x}%
+    }
+    {%
+    \end{minted}
+    }
+%%%%%%%%%%%%%%% BEGIN UNICODE SYMBOLS
+\newunicodechar{₀}{\ensuremath{_0}}
+\newunicodechar{₁}{\ensuremath{_1}}
+\newunicodechar{₂}{\ensuremath{_2}}
+\newunicodechar{₃}{\ensuremath{_3}}
+\newunicodechar{⁺}{\ensuremath{\textsuperscript{+}}}
+\newunicodechar{ˡ}{\ensuremath{^l}}
+\newunicodechar{ʳ}{\ensuremath{^r}}
+\newunicodechar{ᶠ}{\ensuremath{^f}}
+\newunicodechar{≡}{\ensuremath{\equiv}}
+\newunicodechar{≢}{\ensuremath{\not\equiv}}
+\newunicodechar{≟}{\mbox{\tiny\ensuremath{\stackrel{?}{=}}}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\newunicodechar{≃}{\ensuremath{\simeq}}
+\newunicodechar{≤}{\ensuremath{\le}}
+\newunicodechar{≥}{\ensuremath{\ge}}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{←}{\ensuremath{\leftarrow}}
+\newunicodechar{⇒}{\ensuremath{\Rightarrow}}
+\newunicodechar{⇔}{\ensuremath{\Leftrightarrow}}
+\newunicodechar{∀}{\ensuremath{\forall}}
+\newunicodechar{∃}{\ensuremath{\exists}}
+\newunicodechar{⟨}{\ensuremath{\langle}}
+\newunicodechar{⟩}{\ensuremath{\rangle}}
+\newunicodechar{⊤}{\ensuremath{\top}}
+\newunicodechar{⊎}{\ensuremath{\uplus}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{∘}{\ensuremath{\circ}}
+\newunicodechar{ℕ}{\ensuremath{\mathbb{N}}}
+\newunicodechar{∈}{\ensuremath{\in}}
+\newunicodechar{¬}{\ensuremath{\neg}}
+\newunicodechar{⊥}{\ensuremath{\bot}}
+\newunicodechar{∩}{\ensuremath{\cap}}
+\newunicodechar{∪}{\ensuremath{\cup}}
+\newunicodechar{⊆}{\ensuremath{\subseteq}}
+\newunicodechar{ℓ}{\ensuremath{\ell}}
+\newunicodechar{∷}{\ensuremath{::}}
+\newunicodechar{Δ}{\ensuremath{\Delta}}
+\newunicodechar{Γ}{\ensuremath{\Gamma}}
+\newunicodechar{Σ}{\ensuremath{\Sigma}}
+\newunicodechar{Θ}{\ensuremath{\Theta}}
+\newunicodechar{Ω}{\ensuremath{\Omega}}
+\newunicodechar{ε}{\ensuremath{\epsilon}}
+\newunicodechar{λ}{\ensuremath{\lambda}}
+\newunicodechar{δ}{\ensuremath{\delta}}
+\newunicodechar{↓}{\ensuremath{\downarrow}}
+\newunicodechar{∅}{\ensuremath{\varnothing}}
+\newunicodechar{∁}{\ensuremath{\complement}}
+\newunicodechar{∉}{\ensuremath{\not \in}}
+\newunicodechar{⁆}{\ensuremath{\rrbracket}}
+\newunicodechar{⁅}{\ensuremath{\llbracket}}
+\newunicodechar{∎}{\ensuremath{\qed}}
+\newunicodechar{∧}{\ensuremath{\land}}
+\newunicodechar{∨}{\ensuremath{\lor}}
+\newunicodechar{⌊}{\ensuremath{\lfloor}}
+\newunicodechar{⌋}{\ensuremath{\rfloor}}
+\newunicodechar{⋃}{\ensuremath{\bigcup}}
+
+%%%%%%%%%%%%%%% END UNICODE SYMBOLS
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\DeclareMathOperator{\nullable}{Nullable}
+
+
+\begin{document}
+
+\include{first_page}
+
+\clearpage
+\newpage
+\thispagestyle{empty}
+
+\cleardoublepage
+
+\thispagestyle{empty}
+\newgeometry{centering}
+\section*{Abstract}
+We use the proof assistant Agda to prove properties on Regular Expressions and Finite State Automata. Initially, we prove the correctness of two ways to decide whether or not a string belongs to the language of a regular expression. The first one uses Brzozowski's Derivatives and the second one transforms regular expressions into Non-deterministic Finite State Automata. Finally, we show the pumping lemma for regular languages and conclude with the non-regularity of an example language.
+\thispagestyle{empty}
+\restoregeometry   
+
+
+\thispagestyle{empty}
+\tableofcontents
+\thispagestyle{empty}
+
+\newpage
+\thispagestyle{empty}
+\clearpage\null\newpage
+\newpage
+\thispagestyle{empty}
+\clearpage\null\newpage
+
+\thispagestyle{empty}
+
+\addtocontents{toc}{\protect\thispagestyle{empty}}
+\setcounter{page}{1}
+\include{agda_introduction}
+
+\include{regular_expressions}
+
+\include{automata}
+
+\include{conclusion}
+
+\include{bibliography}
+
+\end{document}

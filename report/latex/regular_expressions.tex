@@ -1,0 +1,397 @@
+
+\chapter{Regular Expressions}
+\section{Definition}
+Regular expressions can be defined recursively based on an alphabet $\Sigma$. The language of a regular expression $R$ is denoted as $L(R)$.\\
+Base cases:
+\begin{itemize}
+    \item $\varnothing$ is a regular expression and $L(\varnothing)$ is $\varnothing$, the empty language
+    \item $\epsilon$ is a regular expression and $L(\epsilon)$ is $\{\epsilon\}$, the language containing just the empty string
+    \item $c$, where $c$ is an element of the alphabet $\Sigma$, is a regular expression and $L(c)$ is $\{c\}$, the language containing the single-character string $c$
+\end{itemize}
+Induction:
+\begin{itemize}
+    \item $R+S$ is a regular expression denoting $L(R) \cup L(S)$, where $R$ and $S$ are regular expressions 
+    \item $R \cdot S$ is a regular expression denoting $L(R)L(S)$, where $R$ and $S$ are regular expressions
+    \item $R*$ is a regular expression denoting $(L(R))*$, where $R$ is a regular expression
+\end{itemize}
+\section{Implementation}
+In Agda, we first define the regular expression type: 
+\begin{agda}
+module Regexp (Σ : Set) where
+ε = []
+infixl 6 _+_
+infixl 7 _·_
+infixl 8 _*
+data RegExp : Set where
+  ⟨⟩   : RegExp
+  ⟨ε⟩   : RegExp
+  Atom : Σ → RegExp
+  _+_  : RegExp → RegExp → RegExp
+  _·_  : RegExp → RegExp → RegExp
+  _*   : RegExp → RegExp
+\end{agda}
+It has six constructors:
+\begin{itemize}
+    \item $⟨⟩$ is the constructor for the regular expression denoting the empty language
+    \item $⟨\epsilon⟩$ is the constructor for the regular expression denoting the language containing the empty string
+    \item $Atom$ receives an element of the alphabet as a parameter and builds a regular expression denoting the language containing the single-character string described by the parameter
+    \item $\_+\_$ receives two regular expressions as parameters and builds the regular expression denoting the union of the two languages denoted by the parameters
+    \item $\_\cdot\_$ receives two regular expressions as parameters and builds the regular expression denoting the concatenation of the language of the left-side regular expression to the language of the right-side regular expression
+    \item $\_*$ receives a regular expression as a parameter and builds the regular expression accepting the concatenation of zero or indefinitely more strings of the language of the parameter
+\end{itemize}
+For example, fixing the alphabet to $\Sigma = \{a, b, c\}$, we can define the following regular expressions:
+\begin{itemize}
+    \item $(aa)*$, denoting the language with even number of $a$s
+    \item $a*b?a*$, denoting the strings of $a$s and $b$s with at most one $b$
+    \item $a*b*$, denoting the strings of $a$s followed by $b$s
+    \item $(a(c+b))*$, denoting the strings of pairs of $a$ followed by either $c$ or $b$
+\end{itemize}
+\begin{agda}
+[aa]* = (Atom a · Atom a) *
+a*b?a* = Atom a * · (Atom b + ⟨ε⟩) · Atom a *
+a*b* = Atom a * · Atom b *
+[a[c+b]]* = (Atom a · (Atom c + Atom b)) *
+\end{agda}
+Our current definition of regular expressions is only syntactic and does not hold any information about their languages. We define the semantics of the languages as an inductive relation between strings and regular expressions:
+\begin{agda}
+data _∈_ : String → RegExp → Set where
+  in-ε  : ε ∈ ⟨ε⟩
+  in-*1 : ∀ {E : RegExp}
+          → ε ∈ (E *)
+  in-c  : (c : Σ) → (c ∷ ε) ∈ Atom c
+  in-·  : ∀ {s t : String} {E F : RegExp}
+          → s ∈ E
+          → t ∈ F
+          → (s ++ t) ∈ (E · F)
+  in+l  : ∀ {s : String} {E F : RegExp}
+          → s ∈ E
+          → s ∈ (E + F)
+  in+r  : ∀ {s : String} {E F : RegExp}
+          → s ∈ F
+          → s ∈ (E + F)
+  in-*2 : ∀ {s t : String} {E : RegExp}
+          → s ∈ E
+          → t ∈ (E *)
+          → (s ++ t) ∈ (E *)
+\end{agda}
+There are three base cases:
+\begin{itemize}
+    \item the empty string $ε$ belongs to $L(ε)$
+    \item for any regular expression $E$, the empty string $ε$ belongs to $L(E*)$
+    \item given an element \texttt{c} of the alphabet $\Sigma$, the single-character string \texttt{c} belongs to the language of the regular expression \texttt{Atom c}
+\end{itemize}
+Induction: 
+\begin{itemize}
+    \item for any $s$, $t$, $E$, $F$, if $s$ belongs to $L(E)$ and  if $t$ belongs to $L(F)$ then the concatenation of the strings $st$ belongs to $L(E \cdot F)$
+    \item given $s$ and $E$ such that $s$ belongs to $L(E)$, $s$ belongs to $L(E + F)$ for any regular expression $F$
+     \item given $s$ and $F$ such that $s$ belongs to $L(F)$, $s$ belongs to $L(E + F)$ for any regular expression $E$
+    \item given $s$, $t$ and $E$, if $s$ belongs to $L(E)$ and if $t$ belongs to $L(E*)$, then $st$ belongs to $L(E*)$
+\end{itemize}
+Referring to the regular expressions previously defined, we can show some examples of constructive definitions of membership relations. \\
+The regular expression \texttt{(aa)*} matches \texttt{aaaa}, and so the relation $aaaa \in L((aa)*)$ can be defined as follows:
+\begin{agda}
+x : (a ∷ a ∷ a ∷ a ∷ []) ∈ [aa]*
+x = in-*2 (in-· (in-c a) (in-c a))
+        (in-*2 (in-· (in-c a) (in-c a)) in-*1)
+\end{agda}
+For \texttt{a*b?a*}, we can show that the relation $aba \in L(a*b?a*)$ holds:
+\begin{agda}
+y : (a ∷ b ∷ a ∷ []) ∈ a*b?a*
+y = in-· (in-· (in-*2 (in-c a) in-*1)
+               (in+l (in-c b)))
+         (in-*2 (in-c a) in-*1)
+\end{agda}
+For \texttt{a*b*}, we can show that $aabbb \in L(a*b*)$:
+\begin{agda}
+z : (a ∷ a ∷ b ∷ b ∷ b ∷ []) ∈ a*b*
+z = in-· (in-*2 (in-c a)
+            (in-*2 (in-c a) in-*1))
+         (in-*2 (in-c b)
+            (in-*2 (in-c b)
+              (in-*2 (in-c b) in-*1)))
+\end{agda}
+And for our last regular expression \texttt{(a(c + b))*}, we can show that $abac \in L((a(c + b))*)$
+\begin{agda}
+v : (a ∷ b ∷ a ∷ c ∷ []) ∈ [a[c+b]]*
+v = in-*2 (in-· (in-c a) (in+r (in-c b)))
+          (in-*2 
+            (in-· (in-c a) (in+l (in-c c))) in-*1)
+\end{agda}
+We can already prove some properties on our membership predicate. For example, given a relation \texttt{s ∈ (E · F)}, we can show that \texttt{s} can be divided into two strings \texttt{t}, \texttt{u}, such that \texttt{t ∈ E} and \texttt{u ∈ F}:
+\begin{agda}
+split-seq : ∀{s E F}
+  → s ∈ (E · F)
+  → ∃[ u ] ∃[ v ] ((s ≡ u ++ v) × (u ∈ E) × (v ∈ F))
+split-seq (in-· p q) = _ , _ , refl , p , q
+\end{agda}
+We can prove a similar property for the star operation:
+\begin{agda}
+split-* : ∀{E s}
+  → s ∈ (E *)
+  → s ≢ ε
+  → ∃[ u ] ∃[ v ] (u ≢ ε × s ≡ u ++ v × u ∈ E × v ∈ (E *))
+split-* in-*1 q = ⊥-elim (q refl)
+split-* (in-*2 {[]} p q) neps = split-* q neps
+split-* (in-*2 {x ∷ s} {t} p q) _ = x ∷ s , t , (λ ()) , refl , p , q
+\end{agda}
+A consequence of \texttt{split-seq} is the fact that if the empty string belongs to the concatenation of two regular expression, then the empty string belongs to the languages of both regular expressions. 
+\begin{agda}
+ε-seq : ∀{E F} → ε ∈ (E · F) → ε ∈ E × ε ∈ F
+ε-seq p with split-seq p
+... | [] , [] , refl , p1 , p2 = p1 , p2
+\end{agda}
+
+\section{Algebraic laws for regular expressions}
+Two regular expressions are equivalent if they denote the same language. For example, given two regular expressions $a$ and $b$, the regular expressions $a + b$ and $b + a$ denote the same language. This is also known as the commutativity law of $+$. To prove it we use isomorphism between types. We show that for an arbitrary string $s$ and regular expressions $E$ and $F$, the relation $s \in (E + F)$ is isomorphic to the relation $s \in (F + E)$: 
+\begin{agda}
++-comm : ∀ {s : String} {E F : RegExp}
+  → s ∈(E + F) ≃ s ∈(F + E)
++-comm {s} {E} {F} = 
+  record 
+    { to      = to
+    ; from    = from
+    ; from∘to = from∘to
+    ; to∘from = to∘from
+    }
+  where
+    to : s ∈(E + F) → s ∈(F + E)
+    to (in+l x) = in+r x
+    to (in+r x) = in+l x
+
+    from : s ∈(F + E) → s ∈(E + F)
+    from (in+l x) = in+r x
+    from (in+r x) = in+l x
+
+    from∘to : (x : s ∈ (E + F)) → from (to x) ≡ x
+    from∘to (in+l x) = refl
+    from∘to (in+r x) = refl
+
+    to∘from : (x : s ∈ (F + E)) → to (from x) ≡ x
+    to∘from (in+l x) = refl
+    to∘from (in+r x) = refl
+\end{agda}
+Another example is the fact that the regular expression $E(F + G)$ is equivalent to $(EF + EG)$. This is also known as the distributive law of $+$ over concatenation:
+\begin{agda}
+seq-distrib-+ˡ : ∀ {s : String} {E F G : RegExp}
+  → s ∈(E · (F + G)) ≃ s ∈(E · F + E · G)
+seq-distrib-+ˡ {s} {E} {F} {G} =
+  record
+    { to      = to
+    ; from    = from
+    ; from∘to = from∘to
+    ; to∘from = to∘from }
+  where
+    to : s ∈ (E · (F + G)) → s ∈ (E · F + E · G)
+    to (in-· x (in+l y)) = in+l (in-· x y)
+    to (in-· x (in+r y)) = in+r (in-· x y)
+
+    from : s ∈ (E · F + E · G) → s ∈ (E · (F + G))
+    from (in+l (in-· x y)) = in-· x (in+l y)
+    from (in+r (in-· x y)) = in-· x (in+r y)
+
+    from∘to : (x : s ∈ (E · (F + G))) → from (to x) ≡ x
+    from∘to (in-· x (in+l y)) = refl
+    from∘to (in-· x (in+r y)) = refl
+
+    to∘from : (y : s ∈ (E · F + E · G)) → to (from y) ≡ y
+    to∘from (in+l (in-· y y₁)) = refl
+    to∘from (in+r (in-· y y₁)) = refl
+\end{agda}
+In our work, we proved many other algebraic laws, such as associativity of $+$, identity of concatenation and idempotency of $*$, which can be found in our Agda files.
+
+\section{Decidable membership using derivatives}
+To determine whether or not a string belongs to the language denoted by a regular expression, one cannot simply list and compare all the strings of the language until he finds a match, as they may be infinite (e.g. $L(a*)$). To solve this problem we show an algorithm which makes use of a concept of derivatives on regular expressions, also known as Brzozowski's Derivatives. Later we show another way to solve the problem, by transforming regular expressions into finite state automata.
+
+\subsection{Nullable predicate}
+Initially we define the \texttt{Nullable} predicate. A regular expression \texttt{E} is \texttt{Nullable} when $\epsilon \in L(E)$. We proceed with an inductive datatype:
+\begin{agda}
+data Nullable : RegExp → Set where
+  null⟨ε⟩ : Nullable ⟨ε⟩
+  null+l : ∀{F G} → Nullable F → Nullable (F + G)
+  null+r : ∀{F G} → Nullable G → Nullable (F + G)
+  null·  : ∀{F G} → Nullable F → Nullable G → Nullable (F · G)
+  null*  : ∀{F} → Nullable (F *)
+\end{agda}
+The empty string belongs to the regular expressions \texttt{⟨ε⟩} and \texttt{F*}, for any \texttt{F}. If a regular expression \texttt{F} contains $\epsilon$, then its union with any other regular expression contains $\epsilon$. If $\epsilon$ belongs to two regular expressions \texttt{F} and \texttt{G}, then it belongs to their concatenation.\\
+All the regular expressions defined previously satisfy the \texttt{Nullable} predicate, whereas, for instance, \texttt{Atom c} does not:
+\begin{agda}
+x : Nullable [aa]*
+x = null*
+
+y : Nullable a*b?a*
+y = null· (null· null* (null+r null⟨ε⟩)) null*
+
+z : Nullable a*b*
+z = null· null* null*
+
+u : Nullable [a[c+b]]*
+u = null*
+
+v : ¬ Nullable (Atom a)
+v = λ ()
+\end{agda}
+Is our \texttt{Nullable} predicate actually correct? We need to prove that $\epsilon$ belongs to the language of a regular expression \texttt{E} if and only if \texttt{E} is \texttt{Nullable}. Here is the proof:
+\begin{agda}
+theorem1 : ∀{E : RegExp}
+  → ε ∈(E) ⇔ Nullable E
+theorem1 = record { to = to ; from = from }
+  where
+    to : ∀{E} → ε ∈ E → Nullable E
+    to {⟨ε⟩} _          = null⟨ε⟩
+    to {E + F} (in+l x) = null+l (to x)
+    to {E + F} (in+r x) = null+r (to x)
+    to {E · F} x with ε-seq x
+    ... | ε∈E , ε∈F     = null· (to ε∈E) (to ε∈F)
+    to {E *} _          = null*
+
+    from : ∀{E} → Nullable E → ε ∈ E
+    from null⟨ε⟩     = in-ε
+    from (null+l x)  = in+l (from x)
+    from (null+r x)  = in+r (from x)
+    from (null· x y) = in-· (from x) (from y)
+    from null*       = in-*1
+\end{agda}
+The \texttt{Nullable} predicate is decidable, meaning that we can always know if a regular expression is \texttt{Nullable} or not, and as a consequence if its language contains the empty string or not. We define this property as a function which takes a regular expression \texttt{E} and produces \texttt{Dec (Nullable E)}:
+\begin{agda}
+Nullable? : (E : RegExp) → Dec (Nullable E)
+Nullable? ⟨⟩ = no (λ ())
+Nullable? ⟨ε⟩ = yes null⟨ε⟩
+Nullable? (Atom c) = no (λ ())
+Nullable? (r + s) with Nullable? r | Nullable? s
+... | yes p | _     = yes (null+l p)
+... | _     | yes q = yes (null+r q)
+... | no ¬p | no ¬q = no λ{ (null+l p) → ⊥-elim (¬p p)
+                          ; (null+r q) → ⊥-elim (¬q q) } 
+Nullable? (r · s)  with Nullable? r | Nullable? s
+... | yes p | yes q = yes (null· p q)
+... | _     | no ¬q = no λ{ (null· _ q) → ⊥-elim (¬q q) }
+... | no ¬p | _     = no λ{ (null· p _) → ⊥-elim (¬p p) }
+Nullable? (r *) = yes null*
+\end{agda}
+
+\subsection{Derivative}
+The derivative of a regular expression $E$ with respect to an element $a$ of the alphabet is defined by induction on the structure of $E$, denoted as $E[a]$:
+\begin{agda}
+_[_] : RegExp → Σ → RegExp
+⟨⟩ [ a ]  = ⟨⟩
+⟨ε⟩ [ a ] = ⟨⟩
+(Atom b)[ a ] with b ≟ a
+... | yes p  = ⟨ε⟩
+... | no ¬p  = ⟨⟩
+(F + G)[ a ] = F [ a ] + G [ a ]
+(F · G)[ a ] with Nullable? F
+... | yes p = F [ a ] · G + G [ a ]
+... | no ¬p = F [ a ] · G
+(F *)[ a ]  = F [ a ] · F *
+\end{agda}
+For example, the derivative of \texttt{(aa)*} with the symbol \texttt{a}, denoted as \texttt{(aa)*[a]}, is equal to \texttt{(aa)[a] (aa)*}, which becomes \texttt{a[a] a(aa)*} and gets reduced to \texttt{εa(aa)*}. If we use \texttt{b} instead of \texttt{a}, we get that \texttt{(aa)*[b] = (aa)[b] (aa)* = a[b] a(aa)* = ⟨⟩a(aa)*}. Since \texttt{⟨⟩} is the annihilator of concatenation, we can show that no strings belong to this last derivative:
+\begin{agda}
+x : [aa]* [ a ] ≡ ⟨ε⟩ · Atom a · [aa]*
+x = refl
+
+y : [aa]* [ b ] ≡ ⟨⟩ · Atom a · [aa]*
+y = refl
+
+yp : ∀{s} → ¬ s ∈ [aa]* [ b ]
+yp (in-· (in-· () _) _)
+
+\end{agda}
+Given a regular expression $E$, a symbol $a$ and a string $v$, 
+$$av \in L(E) \Leftrightarrow v \in L (E [ a ]).$$
+For example, the string \texttt{aaaa} belongs to the language of \texttt{(aa)*} and the string \texttt{aaa} belongs to the language of \texttt{(aa)*[a]}:
+\begin{agda}
+x1 : (a ∷ a ∷ a ∷ a ∷ []) ∈ [aa]*
+x1 = in-*2 (in-· (in-c a) (in-c a))
+         (in-*2 (in-· (in-c a) (in-c a)) in-*1)
+
+x2 : (a ∷ a ∷ a ∷ []) ∈ ([aa]* [ a ])
+x2 = in-· (in-· in-ε (in-c a))
+         (in-*2 (in-· (in-c a) (in-c a)) in-*1)
+\end{agda}
+We prove this property by induction on the membership predicate, in both directions. We also use the previously proven properties \texttt{theorem1}, \texttt{split-seq} and \texttt{split-*}:
+\begin{agda}
+theorem2 : ∀{a : Σ} {v : String} {E : RegExp}
+  → v ∈(E [ a ]) ⇔ (a ∷ v) ∈(E)
+theorem2 = record { to = to ; from = from }
+  where
+    to : ∀{a v E} → v ∈(E [ a ]) → (a ∷ v) ∈( E )
+    to {a} {v} {Atom c} x with c ≟ a
+    to {_} {[]} {Atom c} x | yes refl = in-c c
+    to {E = F + G} (in+l x) = in+l (to x)
+    to {E = F + G} (in+r x) = in+r (to x)
+    to {E = F · G} x with Nullable? F
+    to {E = F · G} (in+l (in-· x y)) | yes p
+      = in-· (to x) y
+    to {E = F · G} (in+r x)          | yes p
+      = in-· (_⇔_.from theorem1 p) (to x)
+    to {E = F · G} (in-· x y)        | no ¬p
+      = in-· (to x) y
+    to {E = F *} (in-· x y) = in-*2 (to x) y
+
+    from : ∀ {a}{v}{E} → (a ∷ v) ∈ E → v ∈ E [ a ]
+    from {_} {_} {Atom c} (in-c .c) with c ≟ c
+    ... | yes p = in-ε
+    ... | no ¬p = ⊥-elim (¬p refl)
+    from {E = F + G} (in+l x) = in+l (from x)
+    from {E = F + G} (in+r x) = in+r (from x)
+    from {E = F · G} x with Nullable? F | split-seq x
+    ... | yes p | [] , av , refl , _ , av∈G
+      = in+r (from av∈G)
+    ... | yes p | a ∷ u , t , refl , au∈F , t∈G
+      = in+l (in-· (from au∈F) t∈G)
+    ... | no ¬p | [] , _ , refl , ε∈F , _
+      = ⊥-elim (¬p (_⇔_.to theorem1 ε∈F))
+    ... | no ¬p | a ∷ u , t , refl , au∈F , t∈G
+      = in-· (from au∈F) t∈G
+    from {E = F *} x with split-* x (λ ())
+    ... | [] , _ , ¬p , _ , _ , _ = ⊥-elim (¬p refl)
+    ... | a ∷ t , v , _ , refl , at∈E , v∈E*
+      = in-· (from at∈E) v∈E*
+\end{agda}
+
+\subsection{Decidable membership}
+We can show that a string $v = a_1 a_2 \cdot\cdot\cdot a_n$ belongs to the language of a regular expression \texttt{F} if and only if we obtain a \texttt{Nullable} regular expression after applying derivation on \texttt{F} with each symbol in $v$: 
+$$v \in L(F) \Leftrightarrow \nullable \ (F [a_1][a_2]\cdot\cdot\cdot[a_n]) $$
+The proof is by induction on $v$, as an immediate consequence of \texttt{theorem1} and \texttt{theorem2} :
+\begin{agda}
+theorem3 : ∀ {v : String} {F : RegExp}
+  → v ∈(F) ⇔ Nullable (foldl _[_] F v)
+theorem3 = record { to = to ; from = from }
+  where
+    to : ∀ {v} {F} → v ∈(F) → Nullable (foldl _[_] F v)
+    to {[]} x     = _⇔_.to theorem1 x
+    to {v ∷ vs} x = to (_⇔_.from theorem2 x)
+
+    from : ∀ {v} {F} → Nullable (foldl _[_] F v) → v ∈ F
+    from {[]} x     = _⇔_.from theorem1 x
+    from {v ∷ vs} x = _⇔_.to theorem2 (from x)
+\end{agda}
+The \texttt{Nullable} predicate is decidable and both \texttt{foldl} and derivation are executable functions. 
+Therefore, given an arbitrary string \texttt{v} and an arbitrary regular expression \texttt{F}, we can use \texttt{theorem3}, \texttt{Nullable?}, \texttt{foldl} and \texttt{\_[\_]} to check if the membership relation \texttt{v ∈ F} holds:
+\begin{agda}
+_∈?_ : (v : String) → (F : RegExp) → Dec (v ∈ F)
+v ∈? F with Nullable? (foldl _[_] F v)
+... | yes p = yes (_⇔_.from theorem3 p)
+... | no ¬p = no (λ z → ¬p (_⇔_.to theorem3 z))
+\end{agda}
+In other words, we can check if a string belongs to the language of a regular expression.\\
+Here is an example:
+\begin{agda}
+v = (a ∷ b ∷ a ∷ a ∷ a ∷ a ∷ a ∷ a ∷ a ∷ a ∷ [])
+e1 = v ∈? a*b?a*
+e2 = (b ∷ v) ∈? a*b?a*
+\end{agda}
+By evaluating \texttt{e1}, Agda determines that \texttt{v} belongs to the language of \texttt{a*b?a*} and provides the following construction:
+\begin{agda}
+yes
+  (in-· (in-· (in-*2 (in-c a) in-*1) (in+l (in-c b)))
+      (in-*2 (in-c a)
+       (in-*2 (in-c a)
+        (in-*2 (in-c a)
+         (in-*2 (in-c a)
+          (in-*2 (in-c a)
+           (in-*2 (in-c a)
+            (in-*2 (in-c a) 
+             (in-*2 (in-c a) in-*1)))))))))
+\end{agda}
+On the other hand, as expected, the evaluation of \texttt{e2} determines that the membership relation does not hold, since the regular expression allows only one $b$.

@@ -1,7 +1,7 @@
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; _≢_; refl; cong; sym; subst; trans)
 open import Relation.Nullary using (Dec; ¬_; yes; no)
-open import Relation.Nullary.Sum using (_¬-⊎_)
+open import Relation.Nullary.Decidable using (map; ⌊_⌋)
 
 open import Data.Product using (_×_; Σ; ∃; Σ-syntax; ∃-syntax; proj₁; proj₂; _,_)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -11,6 +11,8 @@ open import Equivalence
 module Brzozowski (Σ : Set) (_≟_ : (a : Σ) → (b : Σ) → Dec (a ≡ b)) where
 open import Regexp Σ
 open import String Σ using (_++_; _∷_; ++-assoc; []; String; ++-idʳ; ++-idˡ; foldl)
+
+open import Data.Bool using (if_then_else_)
 
 data Nullable : RegExp → Set where
   null⟨ε⟩ : Nullable ⟨ε⟩
@@ -37,13 +39,13 @@ Nullable? (r *) = yes null*
 _[_] : RegExp → Σ → RegExp
 ⟨⟩ [ a ] = ⟨⟩
 ⟨ε⟩ [ a ] = ⟨⟩
-(Atom b)[ a ] with b ≟ a
-... | yes p = ⟨ε⟩
-... | no ¬p = ⟨⟩
+(Atom b)[ a ] = if ⌊ b ≟ a ⌋
+                  then ⟨ε⟩
+                  else ⟨⟩
 (F + G)[ a ] = F [ a ] + G [ a ]
-(F · G)[ a ] with Nullable? F
-... | yes p = F [ a ] · G + G [ a ]
-... | no ¬p = F [ a ] · G
+(F · G)[ a ] = if ⌊ Nullable? F ⌋
+                  then F [ a ] · G + G [ a ]
+                  else F [ a ] · G
 (F *)[ a ] = F [ a ] · F *
 
 split-seq : ∀{s E F}
@@ -120,19 +122,21 @@ theorem2 = record { to = to ; from = from }
     ... | a ∷ t , v , _ , refl , at∈E , v∈E*
       = in-· (from at∈E) v∈E*
 
-theorem3 : ∀ {v : String} {F : RegExp}
-  → v ∈(F) ⇔ Nullable (foldl _[_] F v)
-theorem3 = record { to = to ; from = from }
-  where
-    to : ∀ {v} {F} → v ∈(F) → Nullable (foldl _[_] F v)
-    to {[]} x     = _⇔_.to theorem1 x
-    to {v ∷ vs} x = to (_⇔_.from theorem2 x)
+Iff⇒ = _⇔_.to
+Iff⇐ = _⇔_.from
 
-    from : ∀ {v} {F} → Nullable (foldl _[_] F v) → v ∈ F
-    from {[]} x     = _⇔_.from theorem1 x
-    from {v ∷ vs} x = _⇔_.to theorem2 (from x)
+theorem3 : ∀ {v F} → v ∈(F) ⇔ Nullable (foldl _[_] F v)
+theorem3 = record { to = to ; from = from }
+    where
+      to : ∀ {v F} → v ∈(F) → Nullable (foldl _[_] F v)
+      to {[]}     x = Iff⇒ theorem1 x
+      to {v ∷ vs} x = to (Iff⇐ theorem2 x)
+
+      from : ∀ {v F} → Nullable (foldl _[_] F v) → v ∈ F
+      from {[]}     x = Iff⇐ theorem1 x
+      from {v ∷ vs} x = Iff⇒ theorem2 (from x)
 
 _∈?_ : (v : String) → (F : RegExp) → Dec (v ∈ F)
 v ∈? F with Nullable? (foldl _[_] F v)
-... | yes p = yes (_⇔_.from theorem3 p)
-... | no ¬p = no (λ z → ¬p (_⇔_.to theorem3 z))
+... | yes p = yes (Iff⇐ theorem3 p)
+... | no ¬p = no (λ z → ¬p (Iff⇒ theorem3 z))

@@ -1,0 +1,1118 @@
+
+\chapter{Finite State Automata}
+In this chapter we introduce deterministic finite state automata (DFAs) and non-deterministic finite state automata (NFAs). We emulate the inductive operations of regular expressions (concatenation, union, star) using NFAs and we use them to recursively transform regular expressions into NFAs which recognize the same languages. In the last section, we prove the pumping lemma for DFAs using the pigeonhole principle and provide an example of a non-regular language.
+\section{Deterministic Finite Automata}
+A deterministic finite state automaton is a 5-tuple, $(Q,\Sigma ,\delta ,S,F)$, consisting of:
+\begin{itemize}
+    \item a finite set of states $Q$
+    \item a finite set of input symbols called the alphabet $\Sigma$ 
+    \item a transition function $\delta:Q\times \Sigma \rightarrow Q$
+    \item a starting state $S\in Q$
+    \item a subset of final states $F\subseteq Q$
+\end{itemize}
+To enforce the finite property, in Agda we define DFAs as dependent records based on a natural number parameter. Our states are of type \texttt{Fin n}. The starting state is a \texttt{Fin n} element, the transition function is defined as \texttt{Fin n → $\Sigma$ → Fin n} and the final states subset is \texttt{Subset n}:
+\begin{agda}
+module Dfa (Σ : Set) where
+
+record Dfa (n : ℕ) : Set where
+  field
+    S : Fin n
+    δ : Fin n → Σ → Fin n
+    F : Subset n
+\end{agda}
+We define two functions that will simplify the construction of DFAs. The first one is \texttt{make-δ} which builds transition functions. It takes two arguments: the error state and a list of triples that describe the transitions. The other function we will use is \texttt{make-dfa}. It constructs a DFA based on a number of states, a starting state, an error state, a list of final states and a list of transitions:
+\begin{agda}
+TransitionsList = λ n → List (Fin n × Σ × Fin n)
+
+make-δ : ∀{n}
+    → Fin n
+    → TransitionsList n
+    → (Fin n → Σ → Fin n)
+make-δ err [] = λ _ _ → err
+make-δ err ((q , x , p) ∷ xs)
+    = λ h y → if ⌊ q ≟ᶠ h ⌋ ∧ ⌊ x ≟ y ⌋
+                then p
+                else make-δ err xs h y
+
+make-dfa : (n : ℕ)
+    → Fin n
+    → Fin n
+    → List (Fin n)
+    → TransitionsList n
+    → Dfa n
+make-dfa n start error finals transitions
+    = record
+      { S = start
+      ; δ = make-δ error transitions
+      ; F = ⋃ (map ⁅_⁆ finals)
+      }
+\end{agda}
+We can now declaratively build DFAs.\\
+For example, we can implement the DFAs which recognize the same languages of the regular expressions previously used. As a convention, all undefined transitions end up in the error state and are not shown in the diagrams. For \texttt{(aa)*}, we can use three states $\{0, 1, 2\}$, where $0$ is the starting state and $2$ is the error state:
+
+\begin{tikzpicture}[shorten >=1pt,node distance=2cm,on grid,auto] 
+  \node[state,initial,accepting] (0) {$0$}; 
+  \node[state] (1) [right=of 0] {$1$};
+    \path[->] 
+    (0) edge [bend left] node {a} (1)
+    (1) edge [bend left] node {a} (0);
+\end{tikzpicture}
+\begin{agda}
+dfa-[aa]* = make-dfa 3 0F 2F (0F ∷ []) (
+        (0F , a , 1F)
+      ∷ (1F , a , 0F)
+      ∷ []
+    )
+\end{agda}
+The regular expression \texttt{a*b?a*} can also be defined using three states, where $0$ is the starting state and $2$ is the error state:
+
+\begin{tikzpicture}[shorten >=1pt,node distance=2cm,on grid,auto] 
+  \node[state,initial,accepting] (0) {$0$}; 
+  \node[state,accepting] (1) [right=of 0] {$1$};
+    \path[->] 
+    (0) edge [loop] node {a} (0)
+        edge node {b} (1)
+    (1) edge [loop] node {a} (1);
+\end{tikzpicture}
+\begin{agda}
+dfa-a*b?a* = make-dfa 3 0F 2F (0F ∷ 1F ∷ []) (
+        (0F , a , 0F)
+      ∷ (0F , b , 1F)
+      ∷ (1F , a , 1F)
+      ∷ []
+    )
+\end{agda}
+The implementation for \texttt{a*b*} is very similar to the previous one:
+
+\begin{tikzpicture}[shorten >=1pt,node distance=2cm,on grid,auto] 
+  \node[state,initial,accepting] (0) {$0$}; 
+  \node[state,accepting] (1) [right=of 0] {$1$};
+    \path[->] 
+    (0) edge [loop] node {a} (0)
+        edge node {b} (1)
+    (1) edge [loop] node {b} (1);
+\end{tikzpicture}
+\begin{agda}
+dfa-a*b* = make-dfa 3 0F 2F (0F ∷ 1F ∷ []) (
+        (0F , a , 0F)
+      ∷ (0F , b , 1F)
+      ∷ (1F , b , 1F)
+      ∷ []
+    )
+\end{agda}
+For \texttt{(a(c+b))*} we again use three states:
+
+\begin{tikzpicture}[shorten >=1pt,node distance=2cm,on grid,auto] 
+  \node[state,initial,accepting] (0) {$0$}; 
+  \node[state] (1) [right=of 0] {$1$};
+    \path[->] 
+    (0) edge [bend left] node {a} (1)
+    (1) edge [bend left] node {c,b} (0);
+\end{tikzpicture}
+\begin{agda}
+dfa-[a[c+b]]* = make-dfa 3 0F 2F (0F ∷ []) (
+        (0F , a , 1F)
+      ∷ (1F , b , 0F)
+      ∷ (1F , c , 0F)
+      ∷ []
+    )
+\end{agda}
+\subsection{Extended transition function}
+The language of a DFA is the set of strings for which the computation from the starting state ends up in a final state. We can express the computation as a function, also known as the extended transition function. It receives a DFA as input, a state, and a string and recursively computes the resulting state based the definition of the $\delta$ function of the DFA:
+\begin{agda}
+open Dfa
+
+δ^ : ∀{n} → (dfa : Dfa n) → (q : Fin n) → String → Fin n
+δ^ dfa q [] = q
+δ^ dfa q (x ∷ s) = δ^ dfa (δ dfa q x) s
+\end{agda}
+Here is a simple property about the extended transition function applied to the concatenation of two strings:
+\begin{agda}
+lemma-δ^ : ∀{n}
+  (dfa : Dfa n)
+  → (s : String)
+  → (t : String)
+  → (q : Fin n)
+  → δ^ dfa q (s ++ t) ≡ δ^ dfa (δ^ dfa q s) t
+lemma-δ^ dfa [] t q = refl
+lemma-δ^ dfa (c ∷ s) t q = lemma-δ^ dfa s t (δ dfa q c)
+\end{agda}
+\subsection{Language of a DFA}
+A string $s$ belongs to the language of a DFA $A$, here denoted as $A ↓ s$, if the extended transition function leads to a final state, beginning at the starting state of $A$. Since the result of the extended transition function is of type \texttt{Fin n} and the subset of final states is of type \texttt{Subset n}, we define the membership relation between strings and DFAs as the membership relation between \texttt{Fin n} and \texttt{Subset n}.\\
+As shown previously, the membership relation between \texttt{Fin n} and \texttt{Subset n} is decidable. Therefore, membership between strings and languages of DFAs is also decidable.
+\begin{agda}
+infix 10 _↓_
+_↓_ : ∀{n} → Dfa n → String → Set
+dfa ↓ s  = δ^ dfa (S dfa) s ∈ F dfa
+
+_↓?_ : ∀{n} → (dfa : Dfa n) → (s : String) → Dec (dfa ↓ s)
+dfa ↓? s = δ^ dfa (S dfa) s ∈? F dfa
+\end{agda}
+We can immediately tell if a string is accepted or rejected by simply evaluating the result of the extended transition function. For example, the DFA for the regular expression \texttt{(aa)*} accepts \texttt{aa} and rejects string \texttt{aaa}:
+\begin{agda}
+p0 : dfa-[aa]* ↓ (a ∷ a ∷ [])
+p0 = tt
+
+p1 : ¬ dfa-[aa]* ↓ (a ∷ a ∷ a ∷ [])
+p1 ()
+\end{agda}
+Another example is the fact that the DFA for \texttt{a*b?a*} accepts \texttt{aba} and rejects \texttt{bba}:
+\begin{agda}
+p2 : dfa-a*b?a* ↓ (a ∷ b ∷ a ∷ [])
+p2 = tt
+
+p3 : ¬ dfa-a*b?a* ↓ (b ∷ b ∷ a ∷ [])
+p3 ()
+\end{agda}
+
+\section{Non-deterministic Finite Automata}
+Every regular expression can be transformed into a finite state automaton that recognizes the same language (the inverse is also true). Except for the base cases, there are three basic language operations upon which regular expressions are defined: union, concatenation, and star. Implementing these operations using DFAs is rather difficult, so we introduce a new concept of finite state automata: Non-deterministic finite state automata. NFAs might seem more powerful than DFAs, but it can be shown that they are equivalent. In our implementation, we won't use spontaneous transitions, as they could require additional termination proofs.
+
+\subsection{Definition}
+The NFA type is similar to the DFA one, except for the transition function which produces a \texttt{Subset n} instead of a single state:
+\begin{agda}
+record Nfa (n : ℕ) : Set where
+  field
+    S : Fin n
+    δ : Fin n → Σ → Subset n
+    F : Subset n
+\end{agda}
+To simplify the constructions, we define the helper functions \texttt{make-nfa-δ} and \texttt{make-nfa} similarly to the ones used for DFAs, with the addition that the third element of the transitions triples is a list of reached states instead of a single state:
+\begin{agda}
+NfaTransitionsList = λ n → List (Fin n × Σ × List (Fin n))
+
+make-nfa-δ : ∀{n}
+  → Fin n
+  → NfaTransitionsList n
+  → (Fin n → Σ → Subset n)
+make-nfa-δ err [] = λ _ _ → ⁅ err ⁆
+make-nfa-δ err ((q , x , ps) ∷ xs)
+  = λ h y → if ⌊ q ≟ᶠ h ⌋ ∧ ⌊ x ≟ y ⌋
+            then ⋃ (map ⁅_⁆ ps)
+            else make-nfa-δ err xs h y
+
+make-nfa : (n : ℕ)
+  → Fin n
+  → Fin n
+  → List (Fin n)
+  → NfaTransitionsList n
+  → Nfa n
+make-nfa n start error finals transitions
+  = record
+    { S = start
+    ; δ = make-nfa-δ error transitions
+    ; F = ⋃ (map ⁅_⁆ finals)
+    }
+\end{agda}
+For example, we can implement a NFA accepting the strings of $a$s and $b$s containing the substring $babb$. 
+
+\begin{tikzpicture}[shorten >=1pt,node distance=2cm,on grid,auto] 
+  \node[state,initial] (0) {$0$};
+  \node[state] (1) [right=of 0] {$1$};
+  \node[state] (2) [right=of 1] {$2$};
+  \node[state] (3) [right=of 2] {$3$};
+  \node[state,accepting] (4) [right=of 3] {$4$};
+    \path[->] 
+    (0) edge [loop] node {a,b} (0)
+        edge node {b} (1)
+    (1) edge node {a} (2)
+    (2) edge node {b} (3)
+    (3) edge node {b} (4)
+    (4) edge [loop] node {a,b} (4);
+\end{tikzpicture}
+\begin{agda}
+nfa-babb-substring = make-nfa 6 0F 5F (4F ∷ []) (
+        (0F , a , 0F ∷ [])
+      ∷ (0F , b , 0F ∷ 1F ∷ [])
+      ∷ (1F , a , 2F ∷ [])
+      ∷ (2F , b , 3F ∷ [])
+      ∷ (3F , b , 4F ∷ [])
+      ∷ (4F , a , 4F ∷ [])
+      ∷ (4F , b , 4F ∷ [])
+      ∷ []
+    )
+\end{agda}
+Another example is the NFA accepting $a$s terminating by $abc$:
+
+\begin{tikzpicture}[shorten >=1pt,node distance=2cm,on grid,auto] 
+  \node[state,initial] (0) {$0$};
+  \node[state] (1) [right=of 0] {$1$};
+  \node[state] (2) [right=of 1] {$2$};
+  \node[state,accepting] (3) [right=of 2] {$3$};
+    \path[->] 
+    (0) edge [loop] node {a} (0)
+        edge node {a} (1)
+    (1) edge node {b} (2)
+    (2) edge node {c} (3);
+\end{tikzpicture}
+\begin{agda}
+nfa-term-by-abc = make-nfa 5 0F 4F (3F ∷ []) (
+        (0F , a , 0F ∷ 1F ∷ [])
+      ∷ (1F , b , 2F ∷ [])
+      ∷ (2F , c , 3F ∷ [])
+      ∷ []
+    )
+\end{agda}
+\subsection{Language}
+The \texttt{Subset n} result of the $\delta$ adds the non-determinism. The computation of a NFA is no longer linear, as it proceeds on all the ramifications of the resulting subsets of $\delta$. A string is accepted if the NFA reaches a final state in any of the branches:
+\begin{agda}
+open Nfa
+accepts : ∀{n} → Nfa n → Fin n → String → Bool
+accepts A q []       = F A ! q
+accepts A q (c ∷ s) 
+  = any λ p → (δ A q c) ! p ∧ accepts A p s
+\end{agda}
+Where \texttt{any} checks if any number of type \texttt{Fin n} satisfies a given function:
+\begin{agda}
+any : ∀{n} → (P : Fin n → Bool) → Bool
+any {zero}  P = false
+any {suc _} P = P fzero ∨ any λ x → P (fsuc x)
+\end{agda}
+A string belongs to the language of a NFA \texttt{A} if \texttt{A} accepts the string beginning at its starting state:
+\begin{agda}
+_↓_ : ∀{n} → Nfa n → String → Set
+A ↓ s  = T (accepts A (S A) s)
+\end{agda}
+Since \texttt{accepts} is a simple function, the membership relation \texttt{A ↓ s} becomes easily decidable by evaluating the result of \texttt{accepts}:
+\begin{agda}
+_↓?_ : ∀{n} → (A : Nfa n) → (s : String) → Dec (A ↓ s)
+A ↓? s = T? (accepts A (S A) s)
+\end{agda}
+For example, referring to the NFA \texttt{nfa-babb-substring}, we can show that it accepts the strings $babb$ and $ababbbb$, but rejects the string $aba$:
+\begin{agda}
+babb : String
+babb = b ∷ a ∷ b ∷ b ∷ []
+
+x : nfa-babb-substring ↓ babb
+x = tt
+
+y : nfa-babb-substring ↓ (a ∷ babb ++ b ∷ b ∷ [])
+y = tt
+
+z : ¬ nfa-babb-substring ↓ (a ∷ b ∷ a ∷ [])
+z ()
+\end{agda}
+Another example is the fact that \texttt{nfa-term-by-abc} accepts the strings $abc$ and $aaaabc$ but rejects the string $bac$:
+\begin{agda}
+abc : String
+abc = a ∷ b ∷ c ∷ []
+
+t : nfa-term-by-abc ↓ (abc)
+t = tt
+
+u : nfa-term-by-abc ↓ (a ∷ a ∷ a ∷ abc)
+u = tt
+
+v : ¬ nfa-term-by-abc ↓ (b ∷ a ∷ c ∷ [])
+v ()
+\end{agda}
+When a NFA $A$ accepts a non-empty string like $x :: xs$ from a state $q$, we can compute one ``next'' state reached from $q$ with symbol $x$, from which $A$ accepts $xs$: 
+\begin{agda}
+-- Lemma
+anyToExists : ∀{n} {f : Fin n → Bool} 
+  → T (any f) 
+  → ∃[ i ] T(f i)
+
+nextState : ∀{n x xs q} {nfa : Nfa n}
+  → T (accepts nfa q (x ∷ xs))
+  → ∃[ p ] ( p ∈ (δ nfa q x)  × T (accepts nfa p xs))
+nextState {n} acc-x-xs with anyToExists {n} acc-x-xs
+... | p , p∈δqx_∧_acc-p-xs = p , (splitAnd p∈δqx_∧_acc-p-xs)
+\end{agda}
+Saying that a NFA accepts the empty string is equivalent to saying that its starting state is final:
+\begin{agda}
+emptyLanguage : ∀{n} {nfa : Nfa n} 
+    → nfa ↓ ε ≡ S nfa ∈ F nfa
+emptyLanguage = refl
+\end{agda}
+
+
+\subsection{Union}
+Given two NFAs $A$ and $B$, we can build a new NFA $C$ whose language is the union of the two: $L(C)$ = $L(A)$ $\cup$ $L(B)$. The number of states of the resulting NFA is the sum of the number of states of the original two, with one additional state. This additional state is also the starting state. 
+Given a state $q$ and a symbol $c$, the transition function $\delta (q, c)$ is defined in the following way:
+\begin{itemize}
+    \item case $q$ is zero (the additional starting state): the resulting subset contains the states reached by $A$ and $B$ from their starting states with the given input symbol $c$
+    \item case $q$ is a state of $A$: the resulting subset contains the states reached by $A$ from $q$ with $c$
+    \item case $q$ is a state of $B$: the resulting subset contains the states reached by $B$ from $q$ with $c$
+\end{itemize}
+
+The final states subset contains the final states of $A$ and $B$ and eventually the new starting state if the empty string belongs to $A$ or $B$.\\
+Given two subsets $T$ of size $n$ and $U$ of size $m$, using the vector concatenation function, we can create a subset of size $n+m$ containing distinctly all the elements of $T$ and $U$.\\
+We use the previously described function \texttt{splitAt} to determine if a given state of type \texttt{Fin (1 + n + m)} is the additional state, a state of $A$ or a state of $B$.
+
+\begin{agda}
+union : ∀{n m} → Nfa n → Nfa m → Nfa (1 + n + m)
+union {n} {m} A B =
+  record
+    { S = fzero
+    ; δ = d
+    ; F = sf ++ (F A) ++ (F B)
+    }
+  where
+    d : Fin (1 + n + m) → Σ → Subset (1 + n + m)
+    d q c  with splitAt 1 q
+    d q c | inj₁ z = ∅ {1} ++ (δ A (S A) c) ++ (δ B (S B) c)
+    d q c | inj₂ f with splitAt n f
+    ... | inj₁ l = ∅ {1} ++ (δ A l c) ++ ∅
+    ... | inj₂ r = ∅ {1} ++ ∅ ++ (δ B r c)
+
+    sf : Subset 1
+    sf with A ↓? ε | B ↓? ε
+    sf | no ε∉l | no ε∉r = ∅
+    sf | _     | _       = FullSet
+\end{agda}
+For example, we can build the union of the two NFAs previously introduced and we can show it accepts $abc$ and $babb$ but rejects $bac$:
+\begin{agda}
+nfa-union-babb-abc = union nfa-babb-substring nfa-term-by-abc
+
+q : nfa-union-babb-abc ↓ (abc)
+q = tt
+
+r : nfa-union-babb-abc ↓ (b ∷ a ∷ b ∷ b ∷ [])
+r = tt
+
+s : ¬ nfa-union-babb-abc ↓ (b ∷ a ∷ c ∷ [])
+s ()
+\end{agda}
+Before proving that the construction is correct, we first need to prove that the two NFAs are still present in the new NFA after the construction. We show this by proving that both NFAs individually accept a string from a state if and only if they accept it from the same state relatively injected/raised into the union.\\
+The proofs are by induction on the string. For the NFA provided as first argument, the relative state is injected:
+\begin{agda}
+union-preservesˡ : ∀{n m} {A : Nfa n} {B : Nfa m} {q : Fin n}
+  → (s : String)
+  → T (accepts A q s)
+    ⇔
+    T (accepts (union A B) (fsuc (inject+ m q)) s)
+union-preservesˡ {n}{m} {A} {B} {q} s =
+  record { to = to s q ; from = from s q }
+  where
+  to : (s : String) (q : Fin n)
+    → T (accepts A q s)
+    → T (accepts (union A B) (fsuc (inject+ m q)) s)
+  to [] q acc with
+      A ↓? ε
+    | B ↓? ε
+    | ++-inject (F A) (F B) q acc
+  ...| yes _ | yes _ | v = v
+  ...| yes _ | no  _ | v = v
+  ...| no  _ | yes _ | v = v
+  ...| no  _ | no  _ | v = v
+  to (c ∷ s) q acc with nextState {_} {c} {s} acc
+  ... | w , w∈δqc , t rewrite splitAt-inject+ n m q
+                  with to s w t
+                  | ++-inject {n}{m} (δ A q c) ∅ w w∈δqc
+  ... | z | d = fromExists (inject+ m w , (joinAnd d z))
+
+  from : (s : String) (q : Fin n)
+    → T (accepts (union A B) (fsuc (inject+ m q)) s)
+    → T (accepts A q s)
+  from [] q d rewrite
+        sym (lookup-++ˡ (F A) (F B) q)
+    with A ↓? ε | B ↓? ε
+  ... | yes _ | yes _  = d
+  ... | yes _ | no  _  = d
+  ... | no  _ | yes _  = d
+  ... | no  _ | no  _  = d
+  from (x ∷ s) q d with nextState {_} {x} {s} {fsuc (inject+ m q)} d
+  ... | w , w∈δqx , accWs rewrite splitAt-inject+ n m q 
+    with q∈ss++∅ w (δ A q x) w∈δqx
+  ... | p , eq , ds rewrite eq =
+    fromExists (p , joinAnd ds (from s p accWs))
+\end{agda}
+For the NFA provided as second argument, the proof is essentially the same and we only list its statement:
+\begin{agda}
+union-preservesʳ : ∀{n m} {A : Nfa n} {B : Nfa m} {q : Fin m}
+  → (s : String)
+  → T (accepts B q s)
+    ⇔
+    T (accepts (union A B) (fsuc (raise n q)) s)
+\end{agda}
+We now show that a string belongs to the language of the union if and only if it belongs to the language of the first or the second NFA.\\
+The proof is by induction on the string as a consequence of \texttt{union-preserves$^l$} and \texttt{union-preserves$^r$}:
+\begin{agda}
+union-correct : ∀{n m : ℕ} {A : Nfa n} {B : Nfa m}
+  → (s : String)
+  → A ↓ s ⊎ B ↓ s ⇔ union A B ↓ s
+union-correct {n}{m}{A}{B} s =
+  record { to = to s ; from = from s }
+  where
+  to : (s : String) → A ↓ s ⊎ B ↓ s → union A B ↓ s
+  to [] ac with A ↓? ε | B ↓? ε
+  ... | yes _  | yes _ = tt
+  ... | yes _  | no  _ = tt
+  ... | no  _  | yes _ = tt
+  ... | no ¬p  | no ¬q = ⊥-elim ((¬p ¬-⊎ ¬q) ac)
+
+  to (c ∷ s) (inj₁ A↓cs) with nextState {_} {c} {s} A↓cs
+  ... | w , w∈δA , accepts-s-w-A
+                with ++-inject (δ A (S A) c) (δ B (S B) c) w w∈δA
+                   | _⇔_.to (union-preservesˡ s) accepts-s-w-A
+  ... | w∈δA∪B | accepts-s-w-A∪B
+    = fromExists (inject+ m w , joinAnd w∈δA∪B accepts-s-w-A∪B)
+
+  to (c ∷ s) (inj₂ B↓cs) with nextState {_} {c} {s} B↓cs
+  ... | w , w∈δB , accepts-w-B
+                with ++-raise (δ A (S A) c) (δ B (S B) c) w w∈δB
+                   | _⇔_.to (union-preservesʳ s) accepts-w-B
+  ... | w∈δA∪B | accepts-s-w-A∪B
+    = fromExists (raise n w , joinAnd w∈δA∪B accepts-s-w-A∪B)
+
+
+  from : (s : String) → union A B ↓ s → A ↓ s ⊎ B ↓ s
+  from [] d with A ↓? ε | B ↓? ε
+  ... | yes p | yes p₁ = inj₁ p
+  ... | yes p | no ¬p  = inj₁ p
+  ... | no ¬p | yes p  = inj₂ p
+
+  from (x ∷ s) d with nextState {suc n + m} {x} {s} {0F} d
+  ... | w , w∈δSc , accepts-w-s 
+    with split-∈++ w (δ A (S A) x) (δ B (S B) x) w∈δSc
+  ... | inj₁ (p , eq , z) rewrite eq =
+    inj₁ (fromExists (
+      p , joinAnd z (_⇔_.from (union-preservesˡ s) accepts-w-s)))
+  ... | inj₂ (p , eq , z) rewrite eq =
+    inj₂ (fromExists (
+      p , joinAnd z (_⇔_.from (union-preservesʳ s) accepts-w-s)))
+\end{agda}
+\subsection{Concatenation}
+The concatenation function is similar to the union. We add a new starting state and build the transition function based on the transition functions of the input NFAs.\\
+Given $q$ and $c$, $\delta (q, c)$ is defined as follows:
+\begin{itemize}
+    \item case $q$ is zero (the additional starting state): 
+        \begin{itemize}
+            \item if $\epsilon \not \in L(A)$: the resulting subset contains only states reached by $A$ from its starting state with symbol $c$
+            \item if $\epsilon \in L(A)$: the resulting subset contains the states reached by both NFA from their starting state with symbol $c$
+        \end{itemize}
+    \item case $q$ is a state of A: 
+        \begin{itemize}
+            \item if $q$ is not final: the resulting subset is the subset of states reached by $A$ from $q$ with the symbol $c$
+            \item otherwise: in addition to the previous case subset we also add the states reached by $B$ from its starting state with the symbol $c$
+        \end{itemize}
+    \item case $q$ is a state of $B$: the result is the subset of states reached by B from $q$ with the symbol $c$
+\end{itemize}
+The final states subset is defined as:
+\begin{itemize}
+    \item if $\epsilon$ belongs to neither $L(A)$ nor $L(B)$: only the final states of $B$ are final
+    \item if $\epsilon$ belongs to both $L(A)$ and $L(B)$: the starting state is final along with the final states of $A$ and $B$
+    \item if $\epsilon$ belong to $L(B)$ but does not belong to $L(A)$: only the final states of $A$ and $B$ are final
+\end{itemize}
+And here is the implementation in Agda:
+\begin{agda}
+concat : ∀{n m} → Nfa n → Nfa m → Nfa (1 + n + m)
+concat {n} {m} A B =
+  record
+    { S = fzero
+    ; δ = d
+    ; F = f
+    }
+  where
+    d : Fin (1 + n + m) → Σ → Subset (1 + n + m)
+    d q c with splitAt 1 q
+    d _ c | inj₁ z with A ↓? ε
+    ... | yes isf = ∅ {1} ++ (δ A (S A) c) ++ (δ B (S B) c)
+    ... | no ¬isf = ∅ {1} ++ (δ A (S A) c) ++ ∅
+    d _ c | inj₂ mn with splitAt n mn
+    d _ c | inj₂ mn | inj₁ l with l ∈? F A
+    ... | yes isf = ∅ {1} ++ (δ A l c) ++ (δ B (S B) c)
+    ... | no ¬isf = ∅ {1} ++ (δ A l c) ++  ∅
+    d _ c | inj₂ mn | inj₂ r = ∅ {1} ++ ∅ ++ (δ B r c)
+
+    f : Subset (1 + n + m)
+    f with A ↓? ε | B ↓? ε
+    f | yes ε∈l | yes ε∈r = FullSet {1} ++ F A ++ F B
+    f | no ε∉l | yes ε∈r = ∅ {1} ++ F A ++ F B
+    f | _ | no ε∉r = ∅ {1} ++ ∅ ++ F B
+\end{agda}
+For example, we can apply this function to our two NFAs and concatenate \texttt{nfa-babb-substring} on the left of \texttt{nfa-term-by-abc}. We can show that the concatenation accepts \texttt{babbabc} but rejects \texttt{babb}, because the NFA \texttt{nfa-term-by-abc} is on the right and requires a string terminating by \texttt{abc}:
+\begin{agda}
+nfa-concat-babb-abc = concat nfa-babb-substring nfa-term-by-abc
+
+o : nfa-concat-babb-abc ↓ (babb ++ abc)
+o = tt
+
+p : ¬ nfa-concat-babb-abc ↓ babb
+p ()
+\end{agda}
+The correctness proofs follow the same techniques used for the union. We first show that the two NFAs are preserved in the concatenation after the construction. Then we conclude that a string $s$ belongs to the concatenation if and only if it can be divided into two strings $u,v$ such that $u$ belongs to $L(A)$ and $v$ belongs to $L(B)$. Here are the statements of these properties:
+\begin{agda}
+concat-preservesʳ : ∀{n m : ℕ} {p} {A : Nfa n} {B : Nfa m}
+  → (v : String)
+  → T(accepts B p v)
+    ⇔
+    T(accepts (concat A B) (raise 1 (raise n p)) v)
+    
+concat-preservesˡ : ∀{n m : ℕ} {q} {A : Nfa n} {B : Nfa m}
+  → (s : String)
+  → T(accepts (concat A B) (fsuc (inject+ m q)) s)
+    ⇔
+    ∃[ u ] ∃[ v ] (s ≡ u ++ˢ v × T(accepts A q u) × B ↓ v)
+
+concat-correct : ∀{n m : ℕ} {A : Nfa n} {B : Nfa m}
+  → (s : String)
+  → concat A B ↓ s
+    ⇔
+    ∃[ u ] ∃[ v ] (s ≡ u ++ˢ v × A ↓ u × B ↓ v)
+\end{agda}
+\subsection{Star}
+Given a NFA $A$ with $n$ states, we can define the star operation by adding one single state. It is the new starting state and it is also final, as the empty string always belongs to the star closure. The transition function $\delta(q, c)$ is defined as follows:
+\begin{itemize}
+    \item if $q$ is the additional state: the result is the subset of states reached by $A$ from its starting state with symbol $c$
+    \item otherwise, $q$ is one of the states of $A$:
+    \begin{itemize}
+        \item if $q$ is final: the resulting subset contains the states reached by $A$ with symbol $c$ from both $q$ and its starting state
+        \item otherwise: the result is simply the subset of states reached by $A$ from $q$ with $c$
+    \end{itemize}
+\end{itemize}
+\begin{agda}
+star : ∀{n} → Nfa n → Nfa (1 + n)
+star {n} nfa =
+  record { S = fzero ; δ = d ; F = ⁅ fzero ⁆ ++ F nfa }
+  where
+    d : Fin (1 + n) → Σ → Subset (1 + n)
+    d q c with splitAt 1 q
+    d _ c | inj₁ z = ∅ ++ δ nfa (S nfa) c
+    d _ c | inj₂ p with p ∈? F nfa
+    ... | yes isf = ∅ ++ (δ nfa (S nfa) c) ∪ (δ nfa p c)
+    ... | no ¬isf = ∅ ++ δ nfa p c
+\end{agda}
+For example, we can show that the \texttt{star} construction of \texttt{nfa-term-by-abc} accepts the strings $abcabc$ and $abcaaabc$ but rejects $abccc$:
+\begin{agda}
+k : nfa-star-term-abc ↓ (abc ++ abc)
+k = tt
+
+l : nfa-star-term-abc ↓ (abc ++ a ∷ a ∷ abc)
+l = tt
+
+m : ¬ nfa-star-term-abc ↓ (abc ++ c ∷ c ∷ [])
+m ()
+\end{agda}
+Again, we first show that the original NFA is preserved after the star construction and then conclude with the correctness. However, in this case, we have two separate proofs, as the empty string always belongs to the star construction but might not be accepted by the original NFA. Here are the statements:
+\begin{agda}
+star-preserves : ∀{n} {nfa} {q : Fin n} {s}
+  → T(accepts (star nfa) (fsuc q) s)
+    ⇔
+    ∃[ u ] ∃[ v ] (
+          s ≡ u ++ˢ v 
+        × T(accepts nfa q u) 
+        × star nfa ↓ v)
+
+star-correct1 : ∀{n} {s v : String} {nfa : Nfa n}
+  → nfa ↓ s × (star nfa) ↓ v
+  → (star nfa) ↓ (s ++ˢ v)
+ 
+star-correct2 : ∀{n} {a} {s : String} {nfa : Nfa n}
+  → (star nfa) ↓ (a ∷ s)
+  → ∃[ u ] ∃[ v ](
+          s ≡ u ++ˢ v 
+        × nfa ↓ (a ∷ u) 
+        × star nfa ↓ v)
+\end{agda}
+\section{Deciding RegExp membership using NFAs}
+\subsection{NFAs for $L(\varnothing)$, $L(\{\epsilon\})$, $L(\{c\})$}
+Before diving into the generation of a NFA from a regular expression, we first define the NFAs for the base cases: $L(\varnothing)$, $L(\{\epsilon\})$, $L(\{c\})$.\\
+For the empty language, we use one single state which is the starting state and it is not final:
+\begin{agda}
+nfa-∅ : Nfa 1
+nfa-∅ = record { S = 0F ; δ = λ _ _ → ⁅ 0F ⁆ ; F = ∅ }
+
+nfa-∅-is-empty : (s : String) → ¬ (nfa-∅ ↓ s)
+nfa-∅-is-empty (x ∷ s) r = ⊥-elim (nfa-∅-is-empty s (extractOrL r))
+\end{agda}
+The language with just the empty string has two states. The starting state which is final and an error state where all transitions end up:
+\begin{agda}
+nfa-ε : Nfa 2
+nfa-ε = record { S = 0F ; δ = λ _ _ → ⁅ 1F ⁆ ; F = ⁅ 0F ⁆ }
+
+1F-is-error : (s : String) → ¬ (T (accepts nfa-ε 1F s))
+1F-is-error [] z = z
+1F-is-error (x ∷ s) z = ⊥-elim (1F-is-error s (extractOrL z))
+
+nfaε-correct : (s : String) → ¬ (s ≡ ε) → ¬ (nfa-ε ↓ s)
+nfaε-correct [] a b = a refl
+nfaε-correct (x ∷ s) a b = 1F-is-error s (extractOrL b)
+\end{agda}
+The language with just a single character string has three states. The construction is defined based on an input character $c$. The first state is the starting state. The second state is the only final state. The third state is an error state. There is only one transition with character $c$ from the starting state leading to the second state. All other transitions end up in the error state:
+\begin{agda}
+nfa-c : (c : Σ) → Nfa 3
+nfa-c c = record { S = 0F ; δ = δ ; F = ⁅ 1F ⁆ }
+  where
+    δ : Fin 3 → Σ → Subset 3
+    δ 0F k with k ≟ c
+    ... | yes p = ⁅ 1F ⁆
+    ... | no ¬p = ⁅ 2F ⁆
+    δ _ _ = ⁅ 2F ⁆
+
+2F-is-error : ∀{c s} → ¬ (T (accepts (c-nfa c) 2F s ))
+2F-is-error {c} {x ∷ s} d =
+  contradiction (extractOrL d) (2F-is-error {c} {s})
+
+nfac-correct : ∀{c}{s} → nfa-c c ↓ s → s ≡ (c ∷ [])
+nfac-correct {c} {x ∷ []} d with x ≟ c
+... | yes p = cong (_∷ []) p
+nfac-correct {c} {x ∷ y ∷ s} d with x ≟ c
+... | yes p = contradiction d (2F-is-error {c} {x ∷ y ∷ s})
+... | no ¬p = contradiction d (2F-is-error {c} {x ∷ y ∷ s})
+\end{agda}
+
+\subsection{Regular expressions to NFAs}
+We now prove that for every regular expression there is a NFA which recognizes the same language.\\
+For ⟨⟩, the equivalent NFA is \texttt{nfa-∅}.\\
+For ⟨ε⟩, the equivalent NFA is \texttt{nfa-ε}.\\
+For \texttt{Atom c}, we build \texttt{nfa-c} passing \texttt{c}.\\
+For \texttt{(R + S)}, using \texttt{union}, we build the union of the two NFAs generated inductively based on \texttt{R} and \texttt{S}.\\
+For \texttt{(R · S)}, using \texttt{concat}, we build the concatenation of the two NFAs generated inductively based on \texttt{R} and \texttt{S}.\\
+For \texttt{R *}, using \texttt{star}, we build the star closure of the NFA generated inductively based on \texttt{R}.\\
+We conclude that a string belongs to the language of a regular expression if and only if the generated NFA accepts it, as a consequence of the correctness proofs \texttt{nfa-∅-is-empty}, \texttt{nfaε-correct}, \texttt{nfac-correct}, \texttt{union-correct}, \texttt{concat-correct},\\ \texttt{star-correct2} and \texttt{star-correct1}:
+\begin{agda}
+toNFA : (R : RegExp)
+    → ∃₂ λ (n : ℕ) (nfa : Nfa n)
+      → ∀ (s : String)
+      → s ∈ R ⇔ nfa ↓ s
+toNFA ⟨⟩ = 1 , nfa-∅ , λ s → record
+    { to = λ ()
+    ; from = λ nfa↓s → ⊥-elim (nfa-∅-is-empty s nfa↓s)
+    }
+
+toNFA ⟨ε⟩ = 2 , nfa-ε , iff
+  where
+  iff : (s : String)
+    → s ∈ ⟨ε⟩ ⇔ nfa-ε ↓ s
+  iff [] = record { to = λ _ → tt ; from = λ _ → in-ε }
+  iff (x ∷ s) = record
+    { to = λ ()
+    ; from = λ nfa↓xs → ⊥-elim (nfaε-correct (x ∷ s) (λ ()) nfa↓xs )
+    }
+
+toNFA (Atom c) = 3 , nfa-c c , λ s → to IFF from
+  where
+  to : ∀{s}
+    → s ∈ Atom c
+    → nfa-c c ↓ s
+  to (in-c c) with c ≟ c
+  ... | yes p = tt
+  ... | no ¬p = ¬p refl
+
+  from : ∀{s}
+    → nfa-c c ↓ s
+    → s ∈ Atom c
+  from {s} nfa↓s rewrite nfac-correct {c} {s} nfa↓s = in-c c
+
+toNFA (R + F) with toNFA R | toNFA F
+... | n , A , w∈R⇔A↓w | m , B , w∈F⇔B↓w =
+  suc n ℕ.+ m , union A B , λ s → to s IFF (from s)
+  where
+  to :  (s : String)
+    → s ∈ (R + F)
+    → union A B ↓ s
+  to s (in+l s∈R)
+    = _⇔_.to (union-correct s) (inj₁ (_⇔_.to (w∈R⇔A↓w s) s∈R))
+  to s (in+r s∈F)
+    = _⇔_.to (union-correct s) (inj₂ (_⇔_.to (w∈F⇔B↓w s) s∈F))
+
+  from : (s : String)
+    → union A B ↓ s
+    → s ∈ (R + F)
+  from s A∪B↓s with _⇔_.from (union-correct s) A∪B↓s
+  ...| inj₁ A↓s = in+l (_⇔_.from (w∈R⇔A↓w s) A↓s)
+  ...| inj₂ B↓s = in+r (_⇔_.from (w∈F⇔B↓w s) B↓s)
+
+toNFA (R · F) with toNFA R | toNFA F
+... | n , A , w∈R⇔A↓w | m , B , w∈F⇔B↓w =
+  suc n ℕ.+ m , concat A B , λ s → to s IFF (from s)
+  where
+  to : (s : String)
+    → s ∈ (R · F)
+    → concat A B ↓ s
+  to _ (in-· {u} {v} u∈R v∈F) =
+    _⇔_.from (concat-correct (u ++ˢ v))
+      (u
+      , v
+      , refl
+      , _⇔_.to (w∈R⇔A↓w u) u∈R
+      , _⇔_.to (w∈F⇔B↓w v) v∈F)
+
+  from : (s : String)
+    → concat A B ↓ s
+    → s ∈ (R · F)
+  from s AB↓s with _⇔_.to (concat-correct s) AB↓s
+  ... | u , v , s≡uv , A↓u , B↓v rewrite s≡uv =
+    in-· (_⇔_.from (w∈R⇔A↓w u) A↓u) (_⇔_.from (w∈F⇔B↓w v) B↓v)
+
+toNFA (R *) with toNFA R
+... | n , A , s∈R⇔A↓s =
+  suc n , star A , λ s → (to s) IFF (from s)
+  where
+  to : (s : String)
+    → s ∈ (R *)
+    → star A ↓ s
+  to _ in-*1 = tt
+  to _ (in-*2 {u} {v} u∈R v∈R*) =
+    star-correct1 {_} {u} {v} (_⇔_.to (s∈R⇔A↓s u) u∈R , (to v v∈R*))
+
+  lenv<lenau++v : ∀{u v} → (a : Σ) → length v <′ length (a ∷ u ++ˢ v)
+  lenv<lenau++v {[]} {v} a = ≤′-refl
+  lenv<lenau++v {u ∷ us} {v} a = ≤′-step (lenv<lenau++v u)
+
+  star-from-WF : (s : String)
+    → star A ↓ s
+    → Acc _<′_ (length s)
+    → s ∈ (R *)
+  star-from-WF [] _ _ = in-*1
+  star-from-WF (a ∷ s) A*↓as (acc go) with star-correct2 a s A*↓as
+  ... | u , v , as≡uv , A↓au , A*↓v rewrite as≡uv =
+    in-*2 (_⇔_.from (s∈R⇔A↓s (a ∷ u)) A↓au)
+        (star-from-WF v A*↓v (go (length v) (lenv<lenau++v a)))
+
+  from : (s : String)
+    → star A ↓ s
+    → s ∈ (R *)
+  from s A*↓s = star-from-WF s A*↓s (<′-wellFounded (length s))
+\end{agda}
+\subsection{Decidable}
+The previous result is not just a theorem. It produces a perfectly well-defined NFA which accepts the same language of a given regular expression. We can use it to decide whether or not a string $v$ belongs to $L(F)$.\\
+Given a regular expression, we generate the equivalent NFA, compute the result and return to the regular expressions membership relation with the ``⇔'' roperty:
+\begin{agda}
+_∈?_ : (v : String) → (F : RegExp) → Dec (v ∈ F)
+v ∈? F with toNFA F
+... | _ , A , v∈F⇔A↓v with A ↓? v
+... | yes A↓v = yes (_⇔_.from (v∈F⇔A↓v v) A↓v)
+... | no ¬A↓v = 
+  no λ v∈F → contradiction (_⇔_.to (v∈F⇔A↓v v) v∈F) ¬A↓v
+\end{agda}
+For example, by evaluating the expression \texttt{aabaa ∈? a*b?a*}, Agda provides the following membership proof: 
+\begin{agda}
+yes
+  (in-·
+     (in-· (in-*2 (in-c a) (in-*2 (in-c a) in-*1)) 
+       (in+l (in-c b)))
+     (in-*2 (in-c a) 
+       (in-*2 (in-c a) (in-*2 (in-c a) in-*1))))
+\end{agda}
+This approach does the same job as the derivatives one previously described. However, in this case, the generated NFA can be reused multiple times for the same regular expressions. Furthermore, it can be transformed into a deterministic automaton that would have a linear time complexity match.
+
+
+\section{Pumping Lemma and a Non-regular Langauge}
+In this section, we present the Pumping Lemma, a property that holds for any finite state automaton. It can be used to prove that a language is not regular. In fact, we present a simple context-free language which is not recognizable by any finite state automaton. We go back to determinism and use DFAs instead of NFAs to simplify the proofs, but as mentioned, these computation models are equivalent and so they both respect this property.
+
+\subsection{Path}
+As hinted, we will use the pigeonhole principle and we will apply it to the path of visited states. Given a string \texttt{s} and a DFA \texttt{A} with \texttt{m} states, we define a function which computes the path of visited states during the execution of \texttt{A} with \texttt{s} as input. The path is a vector of \texttt{Fin m} elements of size equal to the length of \texttt{s}. We only consider past states, so when the string is empty, the list of past states is empty.
+\begin{agda}
+path : ∀{m} → Dfa m 
+    → Fin m 
+    → (s : String) 
+    → Vec (Fin m) (length s)
+path A q [] = []
+path A q (c ∷ s) = q ∷ (path A (δ A q c) s)
+\end{agda}
+We can prove a simple lemma which states that the state at an index \texttt{i} in the path is equal to the state computed by the extended transition function executed with a prefix of length \texttt{i} of the string:
+\begin{agda}
+lemmaPath : ∀{m}
+  → (dfa : Dfa m)
+  → (s : String)
+  → (i : Fin (length s))
+  → (q : Fin m)
+  → path dfa q s ! i ≡ δ^ dfa q (take (toℕ i) s)
+lemmaPath dfa (c ∷ s) fzero q = refl
+lemmaPath dfa (c ∷ s) (fsuc i) q = lemmaPath dfa s i (δ dfa q c)
+\end{agda}
+
+\subsection{Power}
+A string elevated to the power of \texttt{n} is its self-concatenation \texttt{n} times. We define it recursively based on the exponent:
+\begin{agda}
+_^_ : String → ℕ → String
+s ^ zero = []
+s ^ (suc n) = s ++ s ^ n
+\end{agda}
+For example, the string \texttt{abc} elevated to the power of \texttt{2} generates \texttt{abcabc}.\\
+The power operation has some interesting properties, similar to the ones about natural numbers.\\
+For example, $s^ns^m$ is equal to $s^{n+m}$:
+\begin{agda}
+^-join-+ : (s : String) (n m : ℕ)
+  → (s ^ n) ++ (s ^ m) ≡ s ^ (n + m)
+^-join-+ s 0F     0F = refl
+^-join-+ s 0F     (suc m) = refl
+^-join-+ s (suc n) m rewrite
+      ++-assoc s (s ^ n) (s ^ m)
+    | sym (^-join-+ s n m) = refl
+\end{agda}
+Another example is that $(s^n)^m$ is equal to $s^{n * m}$:
+\begin{agda}
+^-join-* : (s : String) (n m : ℕ)
+  → (s ^ n) ^ m ≡ s ^ (n * m)
+^-join-* s 0F 0F = refl
+^-join-* s 0F (suc m) = ^-join-* s 0F m
+^-join-* s (suc n) 0F = ^-join-* s n 0F
+^-join-* s (suc n) (suc m) rewrite
+            ^-join-* s (suc n) m
+          | ++-assoc s (s ^ n) (s ^ (m + n * m))
+          | ^-join-+ s n (m + n * m)
+          | *-comm n (suc m)
+          | *-comm m n
+          | sym (+-assoc n m (n * m))
+          | sym (+-assoc m n (n * m))
+          | +-comm m n = refl
+\end{agda}
+\subsection{Pigeonhole principle}
+The pigeonhole principle states that given two sets $A$, $B$ and a function $f : A \rightarrow B$, if $B$ has less elements than $A$ then there are at least two distinct elements $i,j$ in $A$ such that $f(i) \equiv f(j)$.\\
+In Agda, finite sets can be easily described using the \texttt{Fin n} type, and so the pigeonhole proof makes use of this type. The proof can be found in the standard library of Agda. Here is its statement:
+\begin{agda}
+pigeonhole : ∀ {m n} → m < n → (f : Fin n → Fin m) →
+             ∃₂ λ i j → i ≢ j × f i ≡ f j
+\end{agda}
+We apply the pigeonhole principle to vectors. Given a vector of size \texttt{m} containing elements of type \texttt{Fin n}, if \texttt{n < m} then there are at least two distinct indexes which point to equal elements. We obtain the following property:
+\begin{agda}
+pigeonholeVec : ∀{n m}
+  → (vec : Vec (Fin n) m)
+  → n < m
+  → ∃[ i ] ∃[ j ] (
+          i <ᶠ j 
+        × toℕ j ≤ n 
+        × vec ! i ≡ vec ! j)
+\end{agda}
+We will use these indexes to divide a given string into three substrings. Here we define a lemma about this operation. Given a string $s$ and two numbers $i,j$ such that $i < j \leq |s|$, we can divide $s$ in three substrings $x$, $y$, $z$ which respect the following constraints:
+\begin{itemize}
+    \item $x$ is the prefix of $s$ of length $i$
+    \item $y$ is not empty
+    \item $xy$ is the prefix of $s$ of length $j$  
+\end{itemize}
+Here is the statement:
+\begin{agda}
+tripartition : (s : String)
+  → (i j : Fin (length s))
+  → i <ᶠ j
+  → ∃[ x ] ∃[ y ] ∃[ z ] (
+        s ≡ x ++ y ++ z
+      × y ≢ []
+      × x ≡ take (toℕ i) s
+      × (x ++ y) ≡ take (toℕ j) s
+      × length (x ++ y) ≡ toℕ j
+    )
+\end{agda}
+
+\subsection{Returning to same state}
+When a DFA starts at $q$ and returns to $q$ after running a string $s$, then it always returns to the same state for any power of $s$. We show that if δ\texttt{\^}$(q, s) \equiv q$, then for any number $m$, we have that δ\texttt{\^}$(q, s ^ m) \equiv q$: 
+\begin{agda}
+returns-back : ∀{n}
+  → (dfa : Dfa n)
+  → (s : String)
+  → (q : Fin n)
+  → q ≡ δ^ dfa q s
+  → ∀(m : ℕ) → q ≡ δ^ dfa q (s ^ m)
+returns-back dfa s q eq zero = refl
+returns-back dfa s q eq (suc m) with
+  returns-back dfa s q eq m | lemma-δ^ dfa s (s ^ m) q
+... | ind | lm2 rewrite sym eq = trans ind (sym lm2)
+\end{agda}
+We extend \texttt{returns-back} lemma by adding a prefix and a suffix and beginning at the starting state:
+\begin{agda}
+pumping-same-state : ∀{n} {dfa : Dfa n}
+  → (s : String)
+  → (t : String)
+  → (u : String)
+  → let p = δ^ dfa (S dfa) s in
+     p ≡ δ^ dfa p t
+  → dfa ↓ (s ++ t ++ u)
+  → ∀ (m : ℕ) → dfa ↓ (s ++ t ^ m ++ u)
+pumping-same-state {n} {dfa} s t u p≡δ^pt dfa↓stu m with
+  returns-back dfa t (δ^ dfa (S dfa) s) p≡δ^pt m
+... | pump with   lemma-δ^ dfa (s ++ t)       u       (S dfa)
+                | lemma-δ^ dfa s              (t ^ m) (S dfa)
+                | lemma-δ^ dfa s              t       (S dfa)
+                | lemma-δ^ dfa (s ++ (t ^ m)) u       (S dfa)
+... | d1 | d2 | d3 | d4 rewrite
+                  trans pump (sym d2)
+                | sym (trans p≡δ^pt (sym d3))
+                | ++-assoc s t u
+                | ++-assoc s (t ^ m) u
+                | trans d1 (sym d4) = dfa↓stu
+\end{agda}
+
+\subsection{Pumping Lemma}
+Given a DFA $A$ with $m$ states, there exists a number $n$ such that, for every string $w \in L(A)$, if $|w|>n$ then $w$ can be divided into three substrings $x,y,z$ such that:
+\begin{itemize}
+    \item $w \equiv xyz$
+    \item $y \not \equiv \epsilon$
+    \item $|xy| \leq n$
+    \item $\forall k: xy^kz \in L(A)$
+\end{itemize}
+One $n$ for which we can be sure this property holds is simply $m$, the number of states of the DFA.\\
+We use the \texttt{pigeonholeVec} principle applied to the path. Then we use the computed indexes to divide the string with \texttt{tripartition} which generates the strings $x$, $y$ and $z$ such that $y \not \equiv \epsilon$ and $|xy| \leq m$. \\
+The \texttt{pigeonholeVec} also tells us that there are two repeated states in two different positions in the path which correspond exactly at the end of the computation of $x$ and the end of the computation of $y$. In fact, with \texttt{lemmaPath} we obtain that: $\delta$\texttt{\^}$(S, x) \equiv q$ and $\delta$\texttt{\^}$(q, y) \equiv q$.\\
+Since $\delta$\texttt{\^}$(q, z) \in F$, using \texttt{pumping-same-state} we conclude that $\forall k: xy^kz \in L(A)$:
+\begin{agda}
+pumpingLemma : {m : ℕ}
+  → (dfa : Dfa m)
+  → ∃[ n ] (
+    ∀(w : String)
+    → dfa ↓ w
+    → n < length w
+    → ∃[ x ] ∃[ y ] ∃[ z ] (
+        w ≡ x ++ y ++ z
+        × y ≢ ε
+        × length (x ++ y) ≤ n
+        × ∀(k : ℕ) → dfa ↓ (x ++ y ^ k ++ z)
+      )
+  )
+pumpingLemma {m} dfa = m , base
+  where
+  base : ∀(w : String)
+    → dfa ↓ w
+    → m < length w
+    → ∃[ x ] ∃[ y ] ∃[ z ] (
+        w ≡ x ++ y ++ z
+        × y ≢ []
+        × length (x ++ y) ≤ m
+        × ∀(k : ℕ) → dfa ↓ (x ++ y ^ k ++ z)
+      )
+  base w dfa↓w m<len_w with
+        pigeonholeVec (path dfa (S dfa) w) m<len_w
+  ... | i , j , i<j , j≤n , eq  with
+        tripartition w i j i<j
+  ... | x , y , z , w≡xyz , y≢ε , x≡takeI , xy≡takeJ , len_xy≡J with
+        lemmaPath dfa w i (S dfa) | lemmaPath dfa w j (S dfa)
+  ... | lp1 | lp2 rewrite
+        sym x≡takeI | sym xy≡takeJ | sym eq | sym len_xy≡J | w≡xyz =
+    x , y , z , ( refl , y≢ε , j≤n
+        , pumping-same-state x y z
+            (trans (sym lp1) (trans lp2 (lemma-δ^ dfa x y (S dfa))))
+            dfa↓w
+      )
+\end{agda}
+For example, we can define a DFA accepting binary strings representing multiples of $5$ and then find a substring that can be repeated indefinitely and still preserve the multiple property. The DFA has $6$ states where $0$ is the starting state and $5$ is the error state:
+
+\begin{tikzpicture}[shorten >=1pt,node distance=2cm,on grid,auto] 
+  \node[state,initial,accepting] (0) {$0$};
+  \node[state] (1) [right=of 0] {$1$};
+  \node[state] (2) [right=of 1] {$2$};
+  \node[state] (3) [right=of 2] {$3$};
+  \node[state] (4) [right=of 3] {$4$};
+    \path[->] 
+    (0) edge [loop] node {0} (0)
+        edge node {1} (1)
+    (1) edge node {0} (2)
+        edge [bend left] node {1} (3)
+    (2) edge [bend left] node {0} (4)
+        edge [bend left] node {1} (0)
+    (3) edge [bend left] node {0} (1)
+        edge node {1} (2)
+    (4) edge node {0} (3)
+        edge [loop] node {1} (4);
+\end{tikzpicture}
+\begin{agda}
+dfa-binary-multiples-5 = make-dfa 6 0F 5F (0F ∷ []) (
+        (0F , 0 , 0F)
+      ∷ (0F , 1 , 1F)
+      ∷ (1F , 0 , 2F)
+      ∷ (1F , 1 , 3F)
+      ∷ (2F , 1 , 0F)
+      ∷ (2F , 0 , 4F)
+      ∷ (3F , 1 , 2F)
+      ∷ (3F , 0 , 1F)
+      ∷ (4F , 1 , 4F)
+      ∷ (4F , 0 , 3F)
+      ∷ []
+    )
+\end{agda}
+When we apply the pumping lemma on it with the string $1110011$, which is equal to $115$ base-ten, we get that $x = 11$, $y = 100$ and $z = 11$. If we remove $y$ with the power $0$, we get that $1111$ is accepted, as expected since $1111$ is equal to $15$ base-ten. If we use for example the power $3$, we get the number $1110010010011$, which is a multiple of $5$ as it is equal to $7315$ base-ten:
+\begin{agda}
+
+-- [115] dec = [1110011] bin
+
+pumpLem = proj₂
+            (pumpingLemma dfa-binary-multiples-5)
+            (1 ∷ 1 ∷ 1 ∷ 0 ∷ 0 ∷ 1 ∷ 1 ∷ [])
+            tt
+            (s≤s (s≤s (s≤s (s≤s (s≤s (s≤s (s≤s z≤n)))))))
+
+x : String
+x = 1 ∷ 1 ∷ []
+
+y : String
+y = 1 ∷ 0 ∷ 0 ∷ []
+
+z : String
+z = 1 ∷ 1 ∷ []
+
+acc1 : dfa-binary-multiples-5 ↓ (x ++ y ^ 0 ++ z)
+acc1 = tt
+
+acc2 : dfa-binary-multiples-5 ↓ (x ++ y ^ 3 ++ z)
+acc2 = tt
+\end{agda}
+\subsection{A Non-regular language}
+A language not recognizable by any DFA is called Non-regular language. For example, the context-free language $L = \{1^n0^n |\ n \ge 0\}$ is not regular. We show that the assumption that there is a DFA that recognizes $L$ is absurd.
+
+Here is the definition of the language:
+\begin{agda}
+I = '1' ∷ []
+O = '0' ∷ []
+
+L : ℕ → String
+L n = (I ^ n) ++ (O ^ n)
+
+_∈L : String → Set
+x ∈L = ∃[ n ] (x ≡ L n)
+\end{agda}
+We say that a string $x$ belongs to the language $L$ if there exists a number $n$ such that $x \equiv 1^n0^n$.
+We define the following lemmas:
+\begin{agda}
+exponents-equal : ∀{n m} 
+  → (I ^ n ++ O ^ m) ∈L 
+  → n ≡ m
+
+char-^-length-++ : (c : Σ) (n : ℕ) (t : String)
+  → length ((c ∷ []) ^ n ++ t) ≡ n + length t
+  
+char-^-length : (c : Σ) (n : ℕ)
+  → length ((c ∷ []) ^ n) ≡ n
+
+xyz-to-power : ∀{n x y z}
+  → (I ^ n) ++ (O ^ n) ≡ x ++ y ++ z
+  → length (x ++ y) ≤ n
+  → y ≢ ε
+  → ∃[ l ] ∃[ p ] ∃[ q ] (
+        x ≡ I ^ l
+      × y ≡ I ^ p
+      × 0 < p
+      × z ≡ (I ^ q) ++ (O ^ n))
+      
+absurd-sum : (l p n q : ℕ)
+  → 1 ≤ p
+  → l + p * (1 + n) + q ≢ n
+\end{agda}
+
+Assume there is a DFA $D$ with $m$ states with the same language of $L$.\\
+The string $1^m0^m$ belongs to $L$ and so by assumption, it is also accepted by $D$. Its length is exactly two times the number of states of $D$, so we satisfy the condition $m < |1^m0^m|$.\\
+Using the pumping lemma on $D$ and $1^m0^m$, we know that there are $x$, $y$, $z$, such that $1^m0^m \equiv xyz$, $y$ is not the empty string, $|xy|\leq m$, and $\forall k: xy^kz \in L(A)$.\\
+The lemma \texttt{xyz-to-power} says that since $1^m0^m \equiv xyz$ and $|xy|\leq m$ and $y$ is not empty, then there are $l$, $p>0$, $q$, such that $x=1^l$, $y=1^p$, $z = 1^q0^m$.\\ 
+We pump $y$ with $k = 1 + m$ and get $1^l (1^p)^{1+m} 1^q 0^m$, which can be simplified to $1^{l + p * (1 + m) + q}0^m$ using the power lemmas. Now, since this string is accepted by $D$, by assumption it also belongs to $L$.\\ 
+Our \texttt{exponents-equal} lemma states that if a string of the form $1^a0^b$ belongs to $L$, then $a$ must be equal to $b$. We apply this lemma on the string $1^{l + p * (1 + m) + q}0^m$ and obtain $l + p * (1 + m) + q \equiv m$.\\
+We know that $p > 0$ and that $l$ and $q$ are natural numbers. By assuming that $l = 0$, $p = 1$ and $q = 0$, which are the lowest possible values (any other values would just increase the inequality), we still conclude that $1 + m \equiv m$, absurd. \\
+And here is the proof in Agda:
+\\
+\begin{agda}
+L-not-regular : ¬ ∃₂ λ (n : ℕ) (dfa : Dfa n)
+                  → ∀ (s : String)
+                  → s ∈L ⇔ dfa ↓ s
+
+L-not-regular (n , dfa , s∈L⇔dfa↓s) with proj₂
+  (pumpingLemma dfa)
+  (L n)
+  (_⇔_.to (s∈L⇔dfa↓s (L n)) (n , refl))
+  (subst (suc n ≤_)
+          (sym (L-length=n+n n))
+          (lemmaℕ≤ n (dfa-states>0 dfa))
+  )
+... | x , y , z , eq , neq , lm , pump with xyz-to-power eq lm neq
+... | l , p , q , x≡I^l , y≡I^p , 0<p , z≡I^q++I^n rewrite
+  y≡I^p | x≡I^l | z≡I^q++I^n with
+  _⇔_.from
+    (s∈L⇔dfa↓s (I ^ l ++ I ^ p ^ (1 + n) ++ I ^ q ++ O ^ n))
+    (pump (1 + n))
+... | fst , snd rewrite
+      ^-join-* I p (1 + n)
+    | sym (++-assoc (I ^ l) (I ^ (p * (1 + n))) (I ^ q ++ O ^ n))
+    | ^-join-+ I l (p * (1 + n))
+    | sym (++-assoc (I ^ (l + (p * (1 + n)))) (I ^ q) (O ^ n))
+    | ^-join-+ I (l + p * (1 + n)) q
+  = absurd-sum l p n q 0<p (exponents-equal (fst , snd))
+\end{agda}

@@ -24,12 +24,15 @@ open import RegexpNfa Σ _≟_ as RegNFA hiding (_∈?_)
 a* = Atom a *
 b* = Atom b *
 
-[aa]* = (Atom a · Atom a) *
+⟨aa⟩* = (Atom a · Atom a) *
 a*b?a* = Atom a * · (Atom b + ⟨ε⟩) · Atom a *
 a*b* = Atom a * · Atom b *
 [a[c+b]]* = (Atom a · (Atom c + Atom b)) *
+
+⟨a+b⟩*a = (Atom a + Atom b) * · Atom a
+
 module membership-examples where
-  x : (a ∷ a ∷ a ∷ a ∷ []) ∈ [aa]*
+  x : (a ∷ a ∷ a ∷ a ∷ []) ∈ ⟨aa⟩*
   x = in-*2 (in-· (in-c a) (in-c a))
           (in-*2 (in-· (in-c a) (in-c a)) in-*1)
   y : (a ∷ b ∷ a ∷ []) ∈ a*b?a*
@@ -49,8 +52,16 @@ module membership-examples where
             (in-*2
               (in-· (in-c a) (in+l (in-c c))) in-*1)
 
+  _ : (a ∷ b ∷ a ∷ []) ∈ ⟨a+b⟩*a
+  _ = in-· (in-*2 (in+l (in-c a)) (in-*2 (in+r (in-c b)) in-*1)) (in-c a)
+
+  open Nullable
+
+  _ = {!  (b ∷ []) ∈? ⟨a+b⟩*a  !}
+
+
 module nullable-examples where
-  x : Nullable [aa]*
+  x : Nullable ⟨aa⟩*
   x = null*
 
   y : Nullable a*b?a*
@@ -66,24 +77,24 @@ module nullable-examples where
   v = λ ()
 
 module derivative-examples where
-  x : [aa]* [ a ] ≡ ⟨ε⟩ · Atom a · [aa]*
+  x : ⟨aa⟩* [ a ] ≡ ⟨ε⟩ · Atom a · ⟨aa⟩*
   x = refl
 
-  y : [aa]* [ b ] ≡ ⟨⟩ · Atom a · [aa]*
+  y : ⟨aa⟩* [ b ] ≡ ⟨⟩ · Atom a · ⟨aa⟩*
   y = refl
 
-  yp : ∀{s} → ¬ s ∈ [aa]* [ b ]
+  yp : ∀{s} → ¬ s ∈ ⟨aa⟩* [ b ]
   yp (in-· (in-· () _) _)
 
-  x1 : (a ∷ a ∷ a ∷ a ∷ []) ∈ [aa]*
+  x1 : (a ∷ a ∷ a ∷ a ∷ []) ∈ ⟨aa⟩*
   x1 = in-*2 (in-· (in-c a) (in-c a))
              (in-*2 (in-· (in-c a) (in-c a)) in-*1)
 
-  x2 : (a ∷ a ∷ a ∷ []) ∈ ([aa]* [ a ])
+  x2 : (a ∷ a ∷ a ∷ []) ∈ (⟨aa⟩* [ a ])
   x2 = in-· (in-· in-ε (in-c a))
              (in-*2 (in-· (in-c a) (in-c a)) in-*1)
 
-  x3 : (a ∷ a ∷ []) ∈ ([aa]* [ a ] [ a ])
+  x3 : (a ∷ a ∷ []) ∈ (⟨aa⟩* [ a ] [ a ])
   x3 = in-· (in+r in-ε)
             (in-*2 (in-· (in-c a) (in-c a)) in-*1)
 
@@ -92,7 +103,8 @@ module decidable-Brzozowski-examples where
 
   e1 = v ∈? a*b?a*
 
-
+  _ = {! (a ∷ []) ∈? ⟨aa⟩*  !}
+  
   e2 = (b ∷ b ∷ []) ∈? a*b?a*
 
   x : v ∈ a*b?a*
@@ -136,16 +148,16 @@ module dfa-examples where
       ; F = ⋃ (map ⁅_⁆ finals)
       }
 
-  dfa-[aa]* = make-dfa 3 0F 2F (0F ∷ []) (
+  dfa-⟨aa⟩* = make-dfa 3 0F 2F (0F ∷ []) (
         (0F , a , 1F)
       ∷ (1F , a , 0F)
       ∷ []
     )
 
-  p0 : dfa-[aa]* ↓ (a ∷ a ∷ [])
+  p0 : dfa-⟨aa⟩* ↓ (a ∷ a ∷ [])
   p0 = tt
 
-  p1 : ¬ dfa-[aa]* ↓ (a ∷ a ∷ a ∷ [])
+  p1 : ¬ dfa-⟨aa⟩* ↓ (a ∷ a ∷ a ∷ [])
   p1 ()
 
   dfa-a*b?a* = make-dfa 3 0F 2F (0F ∷ 1F ∷ []) (
